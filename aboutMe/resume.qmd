@@ -5,7 +5,7 @@ description: Research & Development Engineer
 jupyter: python3
 ---
 
-> Full-Stack Engineer and Data Scientist
+> Senior Full-Stack Engineer & Data Scientist
 
 ::: {.grid .d-block .d-md-grid}
 
@@ -18,157 +18,15 @@ Research & Development Engineer with experience in software development, data sc
 ---
 
 ### Experience
+
 ```{python}
-from widgets import (
-    EmploymentType,
-    ExperienceSchema,
-    LocationType,
-    PositionSchema,
-    experienceWidget,
-)
-from datetime import date
+from widgets import loadResume, renderEducation, renderExperience
+
+resume = loadResume("data/resume.yml")
 ```
 
 ```{python}
-experienceWidget(
-    ExperienceSchema(
-        company="Spikey Studio",
-        positions=[
-            PositionSchema(
-                title="Founder & CEO",
-                startDate=date(2020, 3, 1),
-                present=True,
-                location="Brazil",
-                employmentType=EmploymentType.FULL_TIME,
-                locationType=LocationType.REMOTE,
-            ),
-        ],
-    ),
-)
-```
-
-```{python}
-experienceWidget(
-    ExperienceSchema(
-        company="VT Creative Studio",
-        positions=[
-            PositionSchema(
-                title="Tech Lead",
-                startDate=date(2026, 2, 1),
-                present=True,
-                location="São Paulo, Brazil",
-                employmentType=EmploymentType.FREELANCE,
-                locationType=LocationType.REMOTE,
-            ),
-        ],
-    ),
-)
-```
-
-```{python}
-experienceWidget(
-    ExperienceSchema(
-        company="Argus Solutions",
-        positions=[
-            PositionSchema(
-                title="Senior Full-Stack Engineer & Data Scientist",
-                startDate=date(2025, 1, 1),
-                endDate=date(2025, 11, 1),
-                location="Piracicaba, São Paulo, Brazil",
-                employmentType=EmploymentType.FULL_TIME,
-                locationType=LocationType.HYBRID,
-            ),
-            PositionSchema(
-                title="Senior Full-Stack Developer",
-                startDate=date(2024, 7, 1),
-                endDate=date(2025, 1, 1),
-                location="Piracicaba, São Paulo, Brazil",
-                employmentType=EmploymentType.FULL_TIME,
-                locationType=LocationType.HYBRID,
-            ),
-        ],
-    ),
-)
-```
-
-```{python}
-experienceWidget(
-    ExperienceSchema(
-        company="Guild Market",
-        positions=[
-            PositionSchema(
-                title="Pleno Full-Stack Developer",
-                startDate=date(2024, 6, 1),
-                endDate=date(2024, 7, 1),
-                location="Macaé, Rio de Janeiro, Brazil",
-                employmentType=EmploymentType.FREELANCE,
-                locationType=LocationType.REMOTE,
-            ),
-        ],
-    ),
-)
-```
-
-```{python}
-experienceWidget(
-    ExperienceSchema(
-        company="EMARTIM",
-        positions=[
-            PositionSchema(
-                title="Junior Full-Stack & Mobile Developer",
-                startDate=date(2022, 12, 1),
-                endDate=date(2024, 3, 1),
-                location="Piracicaba, São Paulo, Brazil",
-                employmentType=EmploymentType.FULL_TIME,
-                locationType=LocationType.REMOTE,
-            ),
-            PositionSchema(
-                title="Junior Mobile Developer",
-                startDate=date(2022, 6, 1),
-                endDate=date(2022, 12, 1),
-                location="Piracicaba, São Paulo, Brazil",
-                employmentType=EmploymentType.FULL_TIME,
-                locationType=LocationType.REMOTE,
-            ),
-        ],
-    ),
-)
-```
-
-```{python}
-experienceWidget(
-    ExperienceSchema(
-        company="Woodyverso",
-        positions=[
-            PositionSchema(
-                title="Pleno Mobile Developer and Junior 3D Modeler",
-                startDate=date(2022, 10, 1),
-                endDate=date(2023, 2, 1),
-                location="Macaé, Rio de Janeiro, Brazil",
-                employmentType=EmploymentType.FREELANCE,
-                locationType=LocationType.REMOTE,
-            ),
-        ],
-    ),
-)
-```
-
-```{python}
-experienceWidget(
-    ExperienceSchema(
-        company="GBM Tech & Control",
-        positions=[
-            PositionSchema(
-                title="Intern Front-End Developer",
-                startDate=date(2022, 2, 1),
-                endDate=date(2022, 5, 1),
-                location="Santos, São Paulo, Brazil",
-                employmentType=EmploymentType.INTERNSHIP,
-                locationType=LocationType.HYBRID,
-            ),
-        ],
-    ),
-)
+renderExperience(resume)
 ```
 
 :::
@@ -184,41 +42,7 @@ experienceWidget(
 ### Education
 
 ```{python}
-from widgets import educationWidget, EducationSchema
-from datetime import date
-```
-
-```{python}
-educationWidget(
-    EducationSchema(
-        degree="Bachelor of Engineering in Mechatronics",
-        institution="Unicesumar",
-        startDate=date(2024, 5, 1),
-        present=True,
-    )
-)
-```
-
-```{python}
-educationWidget(
-    EducationSchema(
-        degree="Associate Degree in Internet Systems",
-        institution="Unicesumar",
-        startDate=date(2022, 1, 1),
-        endDate=date(2024, 11, 1),
-    )
-)
-```
-
-```{python}
-educationWidget(
-    EducationSchema(
-        degree="Technical Degree in Systems Development",
-        institution="Escola Técnica Estadual de Peruíbe (ETEC)",
-        startDate=date(2019, 1, 1),
-        endDate=date(2021, 12, 1),
-    )
-)
+renderEducation(resume)
 ```
 
 ##### And more: [Licenses and certificates](https://www.linkedin.com/in/danieltorquatof/details/certifications/){target="_blank"}

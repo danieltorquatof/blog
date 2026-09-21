@@ -19,6 +19,12 @@ def calculateMonths(startDate: date, endDate: date) -> str:
     return f"{years} years and {months} months" if years > 0 else f"{months} months"
 
 
+def formatLocation(position: PositionSchema) -> str:
+    return " · ".join(
+        part for part in [position.location, position.locationType.value] if part
+    )
+
+
 def generateTitle(experience: ExperienceSchema) -> str:
     firstPosition: PositionSchema = experience.positions[0]
 
@@ -30,7 +36,7 @@ def generateTitle(experience: ExperienceSchema) -> str:
     return (
         f"""> ##### **{experience.company}**  \n"""
         f"> {firstPosition.employmentType.value}{f" · {totalTime}" if not firstPosition.present else ""}  \n"
-        f"> {firstPosition.location} · {firstPosition.locationType.value} \n"
+        f"> {formatLocation(firstPosition)} \n"
         "> \n"
     )
 
@@ -71,7 +77,7 @@ def formatPositions(experience: ExperienceSchema) -> str:
     response += (
         f"""> ##### **{experience.company} · {position.employmentType.value}**\n"""
         f"> {startDateFormatted} - {"Present" if position.present else endDateFormatted} · {time}  \n"
-        f"> {position.location} · {position.locationType.value}  \n"
+        f"> {formatLocation(position)}  \n"
         "> \n"
     )
 

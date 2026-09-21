@@ -1,12 +1,13 @@
 from datetime import date
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
 
 
 class EmploymentType(Enum):
     FULL_TIME = "Full-time"
+    SELF_EMPLOYED = "Self-employed"
     FREELANCE = "Freelance"
     INTERNSHIP = "Internship"
 
@@ -22,7 +23,7 @@ class PositionSchema(BaseModel):
     startDate: date
     endDate: date = date.today()
     present: bool = False
-    location: str
+    location: Optional[str] = None
     employmentType: EmploymentType
     locationType: LocationType
 
