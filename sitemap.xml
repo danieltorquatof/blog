@@ -1,35 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://blog.danieltorquatof.spikeystudio.com/projects/index.html</loc>
-    <lastmod>2026-06-08T21:27:21.178Z</lastmod>
-  </url>
-  <url>
     <loc>https://blog.danieltorquatof.spikeystudio.com/posts/index.html</loc>
-    <lastmod>2026-06-08T21:27:21.178Z</lastmod>
-  </url>
-  <url>
-    <loc>https://blog.danieltorquatof.spikeystudio.com/posts/80bacc68-054f-4ecf-958a-ce404eb4c8ff/index.html</loc>
-    <lastmod>2026-06-08T21:27:21.178Z</lastmod>
+    <lastmod>2026-09-21T21:56:04.552Z</lastmod>
   </url>
   <url>
     <loc>https://blog.danieltorquatof.spikeystudio.com/aboutMe/resume.html</loc>
-    <lastmod>2026-06-08T21:27:21.176Z</lastmod>
-  </url>
-  <url>
-    <loc>https://blog.danieltorquatof.spikeystudio.com/achievements/index.html</loc>
-    <lastmod>2026-06-08T21:27:21.177Z</lastmod>
-  </url>
-  <url>
-    <loc>https://blog.danieltorquatof.spikeystudio.com/articles/index.html</loc>
-    <lastmod>2026-06-08T21:27:21.177Z</lastmod>
+    <lastmod>2026-09-21T21:56:04.550Z</lastmod>
   </url>
   <url>
     <loc>https://blog.danieltorquatof.spikeystudio.com/index.html</loc>
-    <lastmod>2026-06-08T21:27:21.178Z</lastmod>
+    <lastmod>2026-09-21T21:56:04.552Z</lastmod>
+  </url>
+  <url>
+    <loc>https://blog.danieltorquatof.spikeystudio.com/articles/index.html</loc>
+    <lastmod>2026-09-21T21:56:04.551Z</lastmod>
+  </url>
+  <url>
+    <loc>https://blog.danieltorquatof.spikeystudio.com/projects/index.html</loc>
+    <lastmod>2026-09-21T21:56:04.552Z</lastmod>
+  </url>
+  <url>
+    <loc>https://blog.danieltorquatof.spikeystudio.com/achievements/index.html</loc>
+    <lastmod>2026-09-21T21:56:04.551Z</lastmod>
   </url>
   <url>
     <loc>https://blog.danieltorquatof.spikeystudio.com/posts/272f6b74-e11a-4ade-a717-0e037d062c7c/index.html</loc>
-    <lastmod>2026-06-08T21:27:21.178Z</lastmod>
+    <lastmod>2026-09-21T21:56:04.552Z</lastmod>
+  </url>
+  <url>
+    <loc>https://blog.danieltorquatof.spikeystudio.com/posts/80bacc68-054f-4ecf-958a-ce404eb4c8ff/index.html</loc>
+    <lastmod>2026-09-21T21:56:04.552Z</lastmod>
   </url>
 </urlset>

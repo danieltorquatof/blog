@@ -9,7 +9,7 @@
 <link>https://blog.danieltorquatof.spikeystudio.com/</link>
 <atom:link href="https://blog.danieltorquatof.spikeystudio.com/index.xml" rel="self" type="application/rss+xml"/>
 <description>Welcome to my personal blog!</description>
-<generator>quarto-1.9.38</generator>
+<generator>quarto-1.10.18</generator>
 <lastBuildDate>Thu, 04 Dec 2025 00:00:00 GMT</lastBuildDate>
 <item>
   <title>Designing Reliable Automation Pipelines for Persistent Game Worlds</title>
