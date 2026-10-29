@@ -1,18 +1,21 @@
-[tool.poetry]
-name = "blog-quarto"
+[project]
+name = "blog"
 version = "0.1.0"
-description = "Blog"
-authors = ["Daniel Torquato <dr.torquato180204@gmail.com>"]
+description = "Daniel Torquato's personal blog, built with Quarto"
+authors = [{ name = "Daniel Torquato", email = "dr.torquato180204@gmail.com" }]
 readme = "README.md"
-package-mode = false
+requires-python = ">=3.13"
+dependencies = [
+    "jupyter>=1.1.1",
+    "pillow>=13.0.0",
+    "pydantic>=2.14.2",
+    "pyyaml>=6.0.3",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-jupyter = "^1.1.1"
-pydantic = "^2.10.6"
-pyyaml = "^6.0.2"
+[dependency-groups]
+dev = [
+    "quarto-cli>=1.10.19",
+]
 
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+package = false
