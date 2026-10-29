@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
-from site_pages import PROJECT_DIR, SOCIAL_CARD_SUFFIX, Page, discoverPages, loadSiteConfig
+from site_pages import PROJECT_DIR, SOCIAL_CARD_SUFFIX, Page, discoverPages, loadSiteConfig, validateProjects
 
 WIDTH: int = 1200
 HEIGHT: int = 630
@@ -147,13 +147,18 @@ def pageLabel(page: Page, siteTitle: str) -> str:
     if section in SECTION_LABELS and page.relativeSource.name == "index.qmd" and len(parts) == 2:
         return siteTitle
 
-    return SECTION_LABELS.get(section, siteTitle)
+    label: str = SECTION_LABELS.get(section, siteTitle)
+
+    return f"{label} · {page.projectStatus}" if page.projectStatus else label
 
 
 def main() -> None:
     website: dict[str, Any] = loadSiteConfig()["website"]
     siteTitle: str = website.get("navbar", {}).get("title") or website["title"]
     domain: str = website["site-url"].split("://", 1)[-1].rstrip("/")
+
+    pages: list[Page] = discoverPages()
+    validateProjects(pages)
 
     generated: int = 0
 
@@ -162,7 +167,7 @@ def main() -> None:
         renderCard(siteTitle, website["title"], "Software Engineering, AI & Systems Design", None, domain),
     )
 
-    for page in discoverPages():
+    for page in pages:
         if not page.usesGeneratedCard:
             continue
 

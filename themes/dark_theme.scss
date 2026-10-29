@@ -182,3 +182,38 @@ $web-font-path: "https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,10
 .navbar .quarto-navbar-tools .quarto-navigation-tool:hover {
   color: $favorite;
 }
+
+// Project lifecycle badge (status: in projects/<slug>/index.qmd)
+$project-status-colors: (
+  planned: $gray-500,
+  experimental: $cyan,
+  active: $favorite,
+  maintained: $green,
+  paused: $yellow,
+  completed: $blue,
+  deprecated: $red,
+  archived: $gray-600,
+);
+
+.project-status {
+  display: inline-block;
+  padding: 0.1rem 0.65rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-transform: capitalize;
+  align-self: flex-start;
+}
+
+.project-card .project-status {
+  margin-bottom: 0.5rem;
+}
+
+@each $status, $color in $project-status-colors {
+  .project-status-#{$status} {
+    color: tint-color($color, 20%);
+    background-color: rgba($color, 0.12);
+  }
+}
