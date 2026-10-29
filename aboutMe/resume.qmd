@@ -1,5 +1,6 @@
 ---
 title: Daniel Torquato
+pagetitle: "Resume"
 description: Research & Development Engineer
 
 jupyter: python3

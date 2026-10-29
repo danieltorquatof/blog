@@ -16,7 +16,13 @@ def calculateMonths(startDate: date, endDate: date) -> str:
         12,
     )
 
-    return f"{years} years and {months} months" if years > 0 else f"{months} months"
+    parts: List[str] = [
+        f"{value} {unit}{'s' if value != 1 else ''}"
+        for value, unit in ((years, "year"), (months, "month"))
+        if value > 0
+    ]
+
+    return " and ".join(parts)
 
 
 def formatLocation(position: PositionSchema) -> str:

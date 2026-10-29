@@ -70,7 +70,7 @@ $pagination-hover-border-color: $primary !default;
   --mermaid-label-fg-color: #{$dark};
   --mermaid-node-bg-color: #{rgba($dark, 0.05)};
   --mermaid-node-fg-color: #{$dark};
-  --scrollbar-bg: $light;
+  --scrollbar-bg: #{$light};
   --scrollbar-thumb: #{$dark};
   --scrollbar-thumb-hover: #{rgba($dark, 0.5)};
 }

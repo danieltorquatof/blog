@@ -3,7 +3,10 @@ title: "Step by step guide on how to ruin your company and your team with AI"
 subtitle: "A roadmap to the quickest way to lose your team's trust"
 description: "This post aims to apply psychology concepts to address a sensitive topic for those who are limited by the use of generative artificial intelligence tools in the professional environment, acting as a direct attack on the intellect, raising questions and seeking plausible solutions."
 
-date: "02/12/2025"
+date: 2025-02-12
+
+# Permanent short link: /posts/<uuid>/ redirects here (utils/seo_postrender.py)
+uuid: 80bacc68-054f-4ecf-958a-ce404eb4c8ff
 
 categories:
   - Behavioral Analysis
@@ -190,7 +193,7 @@ The problem is never the tool itself, but how it is used!
 
 :::{.column-body}
 <script src="https://giscus.app/client.js"
-        data-repo="danieltorquatof/blog_quarto"
+        data-repo="danieltorquatof/blog"
         data-repo-id="R_kgDONv_J5g"
         data-category="Posts"
         data-mapping="number"
@@ -199,7 +202,7 @@ The problem is never the tool itself, but how it is used!
         data-reactions-enabled="1"
         data-emit-metadata="0"
         data-input-position="top"
-        data-theme="light"
+        data-theme="preferred_color_scheme"
         data-lang="en"
         data-loading="lazy"
         crossorigin="anonymous"

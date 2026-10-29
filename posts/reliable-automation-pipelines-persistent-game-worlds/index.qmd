@@ -3,7 +3,10 @@ title: "Designing Reliable Automation Pipelines for Persistent Game Worlds"
 subtitle: "A practical exploration of reasoning, architecture and stable backup mechanisms"
 description: "This post presents the reasoning process and technical decisions that led to the creation of a reliable backup and automation workflow for persistent game servers, including a real use case related to maintaining stable Minecraft sessions at home."
 
-date: "12/04/2025"
+date: 2025-12-04
+
+# Permanent short link: /posts/<uuid>/ redirects here (utils/seo_postrender.py)
+uuid: 272f6b74-e11a-4ade-a717-0e037d062c7c
 
 categories:
   - DevOps
@@ -351,7 +354,7 @@ I hope this explanation clarifies not only what the system does, but also how it
 
 :::{.column-body}
 <script src="https://giscus.app/client.js"
-        data-repo="danieltorquatof/blog_quarto"
+        data-repo="danieltorquatof/blog"
         data-repo-id="R_kgDONv_J5g"
         data-category="Posts"
         data-mapping="number"
@@ -360,7 +363,7 @@ I hope this explanation clarifies not only what the system does, but also how it
         data-reactions-enabled="1"
         data-emit-metadata="0"
         data-input-position="top"
-        data-theme="light"
+        data-theme="preferred_color_scheme"
         data-lang="en"
         data-loading="lazy"
         crossorigin="anonymous"

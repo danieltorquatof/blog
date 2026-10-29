@@ -15,39 +15,28 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          # Full history so file modification times can be restored for sitemap <lastmod>
+          fetch-depth: 0
+
+      - name: Restore file modification times from Git history
+        uses: chetan/git-restore-mtime-action@v2
 
       - name: Set environment variables
         run: echo "QUARTO_CHROMIUM_HEADLESS_MODE=new" >> $GITHUB_ENV
 
-      - name: Set up Quarto
-        uses: quarto-dev/quarto-actions/setup@v2
-
-      - name: Install Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.0
         with:
-          python-version: "3.12"
-          cache: "pip"
+          enable-cache: true
 
-      - name: Install Poetry
-        uses: abatilo/actions-poetry@v4
+      # Installs Python (from .python-version), the dependencies and Quarto (quarto-cli, dev group)
+      - name: Install dependencies
+        run: uv sync --locked
 
-      - name: Setup a local virtual environment
-        run: |
-          poetry config virtualenvs.create true --local
-          poetry config virtualenvs.in-project true --local
-
-      - name: Define a cache for the virtual environment based on the dependencies lock file
-        uses: actions/cache@v3
-        with:
-          path: ./.venv
-          key: venv-${{ hashFiles('poetry.lock') }}
-
-      - name: Install Python dependencies with Poetry
-        run: poetry install
-
-      - name: Ensure Poetry virtual environment is used
-        run: echo "$(poetry env info --path)/bin" >> $GITHUB_PATH
+      - name: Ensure uv virtual environment is used
+        run: echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - name: Publish site
         uses: quarto-dev/quarto-actions/publish@v2

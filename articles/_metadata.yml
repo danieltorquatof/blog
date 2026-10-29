@@ -4,4 +4,11 @@ page-layout: article
 
 title-block-banner: false
 
+author:
+  - name: Daniel Torquato
+    url: https://blog.danieltorquatof.spikeystudio.com/aboutMe/resume.html
+
+# citation_* meta tags (Google Scholar)
+google-scholar: true
+
 draft: true
