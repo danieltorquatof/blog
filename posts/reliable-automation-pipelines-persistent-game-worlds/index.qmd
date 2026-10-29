@@ -4,6 +4,7 @@ subtitle: "A practical exploration of reasoning, architecture and stable backup 
 description: "This post presents the reasoning process and technical decisions that led to the creation of a reliable backup and automation workflow for persistent game servers, including a real use case related to maintaining stable Minecraft sessions at home."
 
 date: 2025-12-04
+date-modified: 2026-10-22
 
 # Permanent short link: /posts/<uuid>/ redirects here (utils/seo_postrender.py)
 uuid: 272f6b74-e11a-4ade-a717-0e037d062c7c
@@ -18,102 +19,136 @@ categories:
 draft: false
 ---
 
+::: {.callout-note}
+## Updated on October 22, 2026
+
+The reference implementation received a [reliability and security release](https://github.com/danieltorquatof/minecraft-backup/pull/1) and this post now reflects it. Most importantly, **the GitHub token is no longer embedded in the remote URL** (the original version wrote it to the repository config and to the logs). The update also fixes backup commits that could fail silently, stops the server cleanly before the final backup, pauses saving while files are staged, adds CI and moves to the Java 25 image. See the [revision history](#revision-history).
+:::
+
 ---
 
 ## Reference Implementation
 
 The complete implementation described throughout this post is publicly available in the following repository:
 
-**GitHub Repository**  
-[danieltorquatof/minecraft-backup](https://github.com/danieltorquatof/minecraft-backup)
+**GitHub Repository**
+[danieltorquatof/minecraft-backup](https://github.com/danieltorquatof/minecraft-backup) · [project page](../../projects/minecraft-backup/index.qmd) (status and updates)
 
-The project contains the full set of scripts, Docker definitions and utility functions that support the automation flow presented above. Reviewing the code directly in the repository can help contextualise the behaviour of each component and illustrate how the pieces integrate in practice.
+The project contains the full set of scripts, Docker definitions and utility functions that support the automation flow presented below. The excerpts in this post come from commit [`e0cc658`](https://github.com/danieltorquatof/minecraft-backup/tree/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe); reviewing the code directly in the repository can help contextualise the behaviour of each component and illustrate how the pieces integrate in practice.
 
 ---
 
 ## Key Code Excerpts
 
-Although the full implementation is available in the repository, a few excerpts help illustrate the mechanics behind the automation layer. The example below shows how the autosave routine delegates world persistence to a dedicated function and then commits the updated data to Git.
+Although the full implementation is available in the repository, a few excerpts help illustrate the mechanics behind the automation layer. The example below shows how the autosave routine guards against overlapping runs and then delegates world persistence to a dedicated function that commits the updated data to Git.
 
 ### scripts/autosave.sh
 
+[View on GitHub](https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/scripts/autosave.sh)
+
 ```bash
 #!/bin/bash
-set -e
+# Periodic backup, run every PERIODIC_INTERVAL minutes while the server is up.
+# Can also be run by hand: docker compose exec minecraft /opt/minecraft-backup/scripts/autosave.sh
 
-source /usr/local/bin/log.sh
-source /usr/local/bin/saveWorld.sh
+source /opt/minecraft-backup/utils/saveWorld.sh
 
-LOG_DIR="/var/log/mc-scripts"
 LOG_FILE="$LOG_DIR/autosave.log"
 
-REPO_DIR="/data/$REPO_NAME"
+exec 9>"$LOCK_FILE"
 
-REPO_URL="https://$GITHUB_TOKEN@github.com/$GITHUB_USER/$REPO_NAME.git"
+if ! flock -n 9; then
+  log "AUTOSAVE" "Another backup is still running. Skipping."
+  exit 0
+fi
+
+if ! server_online; then
+  log "AUTOSAVE" "Server is not accepting RCON commands yet. Skipping."
+  exit 0
+fi
 
 log "AUTOSAVE" "Starting execution..."
 
-git config --global --add safe.directory "$REPO_DIR"
-git config --global init.defaultBranch main
-
-if [ ! -d "$REPO_DIR/.git" ]; then
-    log "AUTOSAVE" "Repository not created. Initializing new repo at $REPO_DIR..."
-
-    git -C "$REPO_DIR" init
-
-    log "AUTOSAVE" "Adding remote origin: $REPO_URL"
-    
-    git -C "$REPO_DIR" remote add origin "$REPO_URL"
+if ! saveWorld "AUTOSAVE"; then
+  log "AUTOSAVE" "Execution failed."
+  exit 1
 fi
-
-saveWorld "AUTOSAVE"
 
 log "AUTOSAVE" "Execution completed."
 ```
 
 ### utils/saveWorld.sh
 
+[View on GitHub](https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/utils/saveWorld.sh)
+
 ```bash
-#!/bin/bash
-
-source /usr/local/bin/log.sh
-
-RCON_HOST="localhost"
-RCON_PORT=${RCON_PORT:-25575}
-RCON_PASS=$RCON_PASSWORD
-
+# Flushes the world to disk (when the server is running), commits every change and pushes it.
 saveWorld() {
-  local PREFIX="$1"
+  local prefix="$1"
+  local online=false
 
-  local UTC_NOW="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-  local COMMIT_MSG="$UTC_NOW - $PREFIX"
+  # ... ensure_repo prepares the repository (omitted)
 
-  rcon-cli 'tellraw @a {"text":"📂 Backup started!","color":"gold"}'
+  if server_online; then
+    online=true
 
-  sleep 2
+    rcon 'tellraw @a {"text":"📂 Backup started!","color":"gold"}' >/dev/null
 
-  rcon-cli "save-all"
-
-  sleep 2
-
-  log $PREFIX "World successfully saved."
-
-  git -C "$REPO_DIR" add .
-  git -C "$REPO_DIR" commit -m "$COMMIT_MSG" || log "AUTOSAVE" "Nothing to commit"
-
-  if ! git -C "$REPO_DIR" push; then
-      log $PREFIX "Upstream not set. Setting upstream and retrying push..."
-
-      git -C "$REPO_DIR" push -u origin main
+    # Pause automatic saving so region files are not rewritten while they are staged.
+    rcon save-off >/dev/null
+    rcon save-all flush >/dev/null
   fi
 
-  log $PREFIX "Autosave successfully deployed."
+  local add_status=0
+  repo_git add -A || add_status=$?
 
-  rcon-cli 'tellraw @a {"text":"📁 Backup completed!","color":"green"}'
+  if [ "$online" = true ]; then
+    rcon save-on >/dev/null || log "$prefix" "WARNING: could not re-enable automatic saving."
+  fi
+
+  if [ "$add_status" -ne 0 ]; then
+    log "$prefix" "ERROR: git add failed."
+    return 1
+  fi
+
+  if repo_git diff --cached --quiet; then
+    log "$prefix" "No changes since the last backup."
+  else
+    local commit_msg
+    commit_msg="$(date -u +"%Y-%m-%dT%H:%M:%SZ") - $prefix"
+
+    repo_git commit -q -m "$commit_msg" || return 1
+  fi
+
+  # Also sends commits left behind by previous failed pushes.
+  if ! repo_git push -q -u origin HEAD; then
+    log "$prefix" "ERROR: git push failed."
+    # ... warns the players in game (omitted)
+    return 1
+  fi
+
+  log "$prefix" "Backup successfully pushed."
 }
 ```
 
-These sections illustrate the predictable structure that supports periodic and manual world preservation. The underlying model is intentionally minimalistic so the logic remains transparent and easy to debug.
+### utils/common.sh: credentials
+
+[View on GitHub](https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/utils/common.sh)
+
+The token is handed to Git through an inline credential helper defined in environment variables, so it never reaches the remote URL, a config file or the logs:
+
+```bash
+export GIT_TERMINAL_PROMPT=0
+export GIT_CONFIG_COUNT=3
+export GIT_CONFIG_KEY_0="safe.directory"
+export GIT_CONFIG_VALUE_0="$REPO_DIR"
+export GIT_CONFIG_KEY_1="init.defaultBranch"
+export GIT_CONFIG_VALUE_1="$GIT_BRANCH"
+export GIT_CONFIG_KEY_2="credential.helper"
+export GIT_CONFIG_VALUE_2='!f() { test "$1" = get && test -n "$GITHUB_TOKEN" && echo "username=${GITHUB_USER:-x-access-token}" && echo "password=$GITHUB_TOKEN"; }; f'
+```
+
+These sections illustrate the predictable structure that supports periodic and manual world preservation. The underlying model is intentionally minimalistic so the logic remains transparent and easy to debug, while every step reports failures instead of assuming success.
 
 ---
 
@@ -134,41 +169,47 @@ Before exploring each script it is useful to visualise how the overall workflow 
 %%| fig-width: 100%
 flowchart TB;
   A[Container starts]
-  B[Initialisation script]
-  C{Repository exists?}
-  D[Clone or update repository]
-  E[Prepare empty repository]
-  F[Start Minecraft server]
-  G[Periodic loop starts]
-  H[Autosave script executes every N minutes]
-  I[saveWorld.sh]
-  J[Git add and commit]
-  K[Push to GitHub]
-  L[Container receives stop signal]
-  M[Shutdown script]
+  B[Validate configuration]
+  C[Initialisation script]
+  D{Remote has backups?}
+  E[Clone or fast-forward repository]
+  F[Prepare empty repository]
+  G[Start Minecraft server]
+  H[Periodic loop starts]
+  I[Autosave script executes every N minutes]
+  J[saveWorld.sh]
+  K[Pause saving and flush world]
+  L[Git add, resume saving, commit if changed]
+  M[Push to GitHub]
+  N[Container receives stop signal]
+  O[Stop server gracefully]
+  P[Shutdown script]
 
   A --> B
   B --> C
+  C --> D
 
-  C -- Yes --> D
-  C -- No --> E
+  D -- Yes --> E
+  D -- No --> F
 
-  D --> F
-  E --> F
-
+  E --> G
   F --> G
-  G --> H
 
+  G --> H
   H --> I
+
   I --> J
   J --> K
-
-  F --> L
+  K --> L
   L --> M
-  M --> I
+
+  G --> N
+  N --> O
+  O --> P
+  P --> J
 ```
 
-This diagram reflects the core concept. Every event leads to a deterministic and observable action. World data is always saved, always committed and always pushed.
+This diagram reflects the core concept. Every event leads to a deterministic and observable action. World data is always saved, always committed and always pushed, and any step that fails is logged and reported instead of silently ignored.
 
 ---
 
@@ -178,19 +219,19 @@ The project uses a modular structure that separates concerns and creates predict
 
 ```bash
 .
+├── .github/workflows/ci.yml   # ShellCheck, Hadolint, compose validation and image build
 ├── docker-compose.yml
 ├── Dockerfile
-├── entrypoint.sh
+├── entrypoint.sh              # Startup → periodic loop → graceful shutdown
 ├── .env.example
-├── .gitignore
-├── README.md
 ├── scripts
-│   ├── autosave.sh
-│   ├── init.sh
-│   ├── shutdown.sh
-├── utils
-│   ├── log.sh
-│   ├── saveWorld.sh
+│   ├── autosave.sh            # Periodic backup (can also be run by hand)
+│   ├── init.sh                # Restores/clones the world before the server starts
+│   └── shutdown.sh            # Final backup after the server stops
+└── utils
+    ├── common.sh              # Shared configuration, git/RCON helpers
+    ├── log.sh                 # Logging to stdout and ./logs
+    └── saveWorld.sh           # Flush → commit → push
 ```
 
 Each one will be explained individually so the full picture becomes clear.
@@ -203,10 +244,11 @@ Each one will be explained individually so the full picture becomes clear.
 
 Defines how the server is launched. It handles:
 
-* Port exposure for gameplay and RCON access;
+* Port exposure for gameplay only (`MC_HOST_PORT`, `25565` by default). RCON stays inside the container, since backups are the only thing that uses it;
 * Environment variable loading;
 * Persistence of the Minecraft world and logs;
-* Building the custom image from the local Dockerfile.
+* Building the custom image from the local Dockerfile;
+* A three minute `stop_grace_period`, so Docker does not kill the container while the final backup is being pushed.
 
 Its purpose is to maintain stability across restarts and ensure that all automation scripts remain present inside the container.
 
@@ -214,7 +256,7 @@ Its purpose is to maintain stability across restarts and ensure that all automat
 
 ### Dockerfile
 
-The Dockerfile extends the "official" image `itzg/minecraft-server:java21` then introduces all custom scripts. This combination provides the reliability of a well maintained base image while enabling custom behaviour controlled entirely by our own entrypoint.
+The Dockerfile extends the "official" image `itzg/minecraft-server:java25` (configurable through `MC_IMAGE_TAG` for older Minecraft versions) then installs all custom scripts under `/opt/minecraft-backup`. This combination provides the reliability of a well maintained base image while enabling custom behaviour controlled entirely by our own entrypoint.
 
 ```{mermaid}
 %%| fig-align: center
@@ -242,11 +284,11 @@ This script coordinates the lifecycle of the server and backup system.
 
 It performs:
 
-1. Initialisation;
-2. Startup synchronisation;
+1. Configuration validation (repository name, token, interval);
+2. Initialisation and startup synchronisation;
 3. Launch of the periodic autosave loop;
 4. Delegation to the official Minecraft server start script;
-5. Graceful shutdown and final backup.
+5. Graceful shutdown: the server is stopped first, then the final backup runs.
 
 A second diagram helps illustrate this behaviour.
 
@@ -255,33 +297,45 @@ A second diagram helps illustrate this behaviour.
 %%| fig-width: 100%
 flowchart TB;
   A[entrypoint.sh starts]
+  V{Configuration valid?}
+  X[Exit with a clear error]
   B[Run init.sh]
   C[Configure and sync repository]
   D[Start autosave loop in background]
   E[Begin Minecraft server]
   F{Stop signal received?}
+  S[Stop server and wait for it to save]
   G[Run shutdown.sh]
-  H[Final save and push]
+  H[Final commit and push]
 
-  A --> B
+  A --> V
+  V -- No --> X
+  V -- Yes --> B
   B --> C
   C --> D
   D --> E
   E --> F
-  F -- Yes --> G
+  F -- Yes --> S
+  S --> G
   G --> H
   F -- No --> E
 ```
 
-This flow ensures that no world data is lost, regardless of how the container stops.
+This flow ensures that no world data is lost, regardless of how the container stops. The same final backup also runs when the server stops on its own, for example after `/stop` in game.
 
 ---
 
 ## Utility Layers
 
+### utils/common.sh
+
+Shared configuration used by every script: the Git identity (commits fail without a committer), the credential helper shown above, RCON helpers and a function that runs Git as the same user as the server, so no world file ends up owned by root.
+
+---
+
 ### utils/log.sh
 
-A lightweight logger that standardises how each script communicates events. Every log entry includes a timestamp and prefix. This improves verification and troubleshooting. Logs are written to persistent storage so they survive container recreation.
+A lightweight logger that standardises how each script communicates events. Every log entry includes a timestamp and prefix and goes both to `docker compose logs` and to persistent storage, so it survives container recreation. This improves verification and troubleshooting.
 
 ---
 
@@ -289,9 +343,9 @@ A lightweight logger that standardises how each script communicates events. Ever
 
 The most responsibilities in the automation pipeline concentrate here. It performs:
 
-* In game world save via RCON
-* Git staging and committing
-* Push synchronisation with GitHub
+* In game world flush via RCON, with automatic saving paused while files are staged
+* Git staging and committing (only when something changed)
+* Push synchronisation with GitHub, including commits left behind by earlier failed pushes
 * Messaging for both users and logs
 
 It represents the core reliability mechanism. If this script functions correctly, every world state becomes recoverable.
@@ -302,19 +356,19 @@ It represents the core reliability mechanism. If this script functions correctly
 
 ### scripts/init.sh
 
-Executed only during startup. It validates the remote repository, checks whether it exists and whether it is empty. It clones or prepares the repository so the world directory becomes fully managed by Git. This step prevents drift between the running server and the stored history.
+Executed only during startup. It validates the remote repository, checks whether it exists and whether it is empty. It clones the repository, fast-forwards an existing clone or prepares a new one so the world directory becomes fully managed by Git. A local world without history is moved aside instead of being overwritten. This step prevents drift between the running server and the stored history.
 
 ---
 
 ### scripts/autosave.sh
 
-Runs periodically based on the interval defined in the environment variables. It configures Git, initialises a new repository if needed and calls `saveWorld.sh`. These periodic commits create a complete backup timeline.
+Runs periodically based on the interval defined in the environment variables. It skips the run when another backup is still in progress or the server is not ready yet, and otherwise calls `saveWorld.sh`. These periodic commits create a complete backup timeline.
 
 ---
 
 ### scripts/shutdown.sh
 
-Triggered on termination of the container. It immediately calls `saveWorld.sh` so the final server state is stored safely. This prevents data corruption and makes the server restart friendly regardless of how the container was stopped.
+Triggered after the server has stopped. It waits for any backup still in progress and calls `saveWorld.sh` so the final server state is stored safely. Because the server has already flushed the world to disk, this prevents data corruption and makes the server restart friendly regardless of how the container was stopped.
 
 ---
 
@@ -324,13 +378,12 @@ Triggered on termination of the container. It immediately calls `saveWorld.sh` s
 
 Guides the user in defining:
 
-* GitHub repository credentials
-* Minecraft server settings
-* RCON access
-* Backup intervals
+* GitHub repository credentials (a fine-grained token limited to the backup repository is enough)
+* Minecraft server settings and the base image tag
+* Backup intervals and an optional Git remote other than GitHub
 * Metadata for commits
 
-This separation of configuration strengthens clarity and reduces accidental misconfiguration.
+This separation of configuration strengthens clarity and reduces accidental misconfiguration, and the entrypoint refuses to start with an invalid one.
 
 ---
 
@@ -340,7 +393,7 @@ Although the technical implementation is interesting, the motivation emerged fro
 
 Creating an infrastructure that handles backups automatically removed the cognitive load entirely. It also ensured that every session became safe. The system evolved from a personal inconvenience into an elegant example of how automation thinking can improve both professional and personal digital environments.
 
-This project demonstrates that reliable systems do not appear spontaneously. They are built through reasoning, testing and iteration. Whether used for game worlds, business processes or experimental environments, the principles remain consistent: predictable automation, clear observability and robust fallback mechanisms.
+This project demonstrates that reliable systems do not appear spontaneously. They are built through reasoning, testing and iteration. The first version already worked for everyday use, yet running it for months revealed failures that only appear over time: commits that failed without a committer identity, a token that leaked into the logs, a final backup racing against the server's own shutdown. Whether used for game worlds, business processes or experimental environments, the principles remain consistent: predictable automation, clear observability and robust fallback mechanisms.
 
 ---
 
@@ -349,6 +402,13 @@ This project demonstrates that reliable systems do not appear spontaneously. The
 Constructing automation flows like this establishes a foundation for trust in any persistent system. Once the structure works without supervision, users are free to focus on the experience rather than maintenance. In my case it allowed long sessions of building and exploration with my partner to continue without disruption.
 
 I hope this explanation clarifies not only what the system does, but also how it was structured and why the reasoning behind it led to a reliable design.
+
+---
+
+## Revision history
+
+* **October 22, 2026**: Updated for the reliability and security release of the reference implementation ([PR #1](https://github.com/danieltorquatof/minecraft-backup/pull/1)): new code excerpts, credential handling, graceful shutdown, consistent snapshots, Java 25 image and CI.
+* **December 4, 2025**: First published.
 
 ---
 
@@ -370,4 +430,3 @@ I hope this explanation clarifies not only what the system does, but also how it
         async>
 </script>
 :::
-
