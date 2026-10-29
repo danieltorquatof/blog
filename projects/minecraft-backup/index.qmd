@@ -1,0 +1,97 @@
+---
+title: "Minecraft Backup"
+subtitle: "Automated, Git-versioned backups for Minecraft Java servers running in Docker"
+description: "A Docker wrapper around itzg/minecraft-server that restores the world on startup, backs it up to GitHub on a schedule and takes a final backup on shutdown."
+
+date: 2025-12-04
+date-modified: 2026-10-22
+
+# Permanent short link: /projects/<uuid>/ redirects here (utils/seo_postrender.py)
+uuid: 1377d434-1a15-4b62-aff5-c48ab1f38f16
+
+# Lifecycle: planned | experimental | active | maintained | paused | completed | deprecated | archived
+status: maintained
+repository: https://github.com/danieltorquatof/minecraft-backup
+code-license: MIT
+languages:
+  - Bash
+  - Dockerfile
+
+categories:
+  - DevOps
+  - Docker
+  - Automation
+  - Backup
+  - Minecraft
+
+listing:
+  id: write-ups
+  contents:
+    - ../../posts/reliable-automation-pipelines-persistent-game-worlds/index.qmd
+  type: default
+  fields:
+    - date
+    - title
+    - subtitle
+    - description
+
+draft: false
+---
+
+---
+
+## Overview
+
+Minecraft Backup wraps the [`itzg/minecraft-server`](https://docker-minecraft-server.readthedocs.io/en/latest/) image with a custom entrypoint that treats the world folder as a Git repository. The world is restored from GitHub when the container starts, committed and pushed at a fixed interval while people play, and backed up one last time after the server stops cleanly, so a world can always be recovered, moved to another machine or rolled back to an earlier commit.
+
+* **Periodic backups**: a Git commit every `PERIODIC_INTERVAL` minutes, created only when something changed.
+* **Consistent snapshots**: automatic saving is paused (`save-off` / `save-all flush`) while files are staged.
+* **Graceful shutdown**: the server stops first, then the final backup is committed and pushed.
+* **Safe credentials**: the GitHub token stays in memory, never in the remote URL, the repository config or the logs.
+* **Any Git remote**: GitHub by default, or GitLab, Gitea or a bare repository through `GIT_REMOTE_URL`.
+* **Compatible with the official image**: every `itzg/minecraft-server` variable still works.
+
+## Quick start
+
+```bash
+git clone https://github.com/danieltorquatof/minecraft-backup.git
+cd minecraft-backup
+cp .env.example .env   # set GITHUB_USER, GITHUB_TOKEN and REPO_NAME
+docker compose up -d --build
+```
+
+The [README](https://github.com/danieltorquatof/minecraft-backup#readme) covers the token permissions, every variable and how to restore an older backup.
+
+## Updates
+
+| Date | Update |
+| --- | --- |
+| 2026-10-22 | **Reliability and security release** ([PR #1](https://github.com/danieltorquatof/minecraft-backup/pull/1)): backup commits no longer fail silently, graceful shutdown before the final backup, token removed from remote URLs and logs, consistent snapshots with backup locking, safer handling of empty or diverged remotes, RCON no longer published, Java 25 base image and CI (ShellCheck, Hadolint, compose validation, image build). |
+| 2025-12-04 | **Initial release**: periodic Git backups to GitHub, restore on startup and backup on shutdown. |
+
+## Write-ups
+
+::: {#write-ups}
+:::
+
+---
+
+:::{.column-body}
+<script src="https://giscus.app/client.js"
+        data-repo="danieltorquatof/blog"
+        data-repo-id="R_kgDONv_J5g"
+        data-category="Projects"
+        data-category-id="DIC_kwDONv_J5s4Cmket"
+        data-mapping="specific"
+        data-term="1377d434-1a15-4b62-aff5-c48ab1f38f16"
+        data-strict="1"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+:::
