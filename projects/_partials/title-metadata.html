@@ -1,0 +1,116 @@
+<!-- Quarto's default title-metadata.html (1.10) plus project Status / Repository / License.
+     Enabled for project pages through template-partials in projects/_metadata.yml. -->
+$if(by-affiliation/first)$
+<div class="quarto-title-meta-author">
+  <div class="quarto-title-meta-heading">$labels.authors$</div>
+  <div class="quarto-title-meta-heading">$labels.affiliations$</div>
+  
+  $for(by-author)$
+  <div class="quarto-title-meta-contents">
+    <p class="author">$_title-meta-author.html()$</p>
+  </div>
+  <div class="quarto-title-meta-contents">
+    $for(by-author.affiliations)$
+    <p class="affiliation">
+      $if(it.url)$
+      <a href="$it.url$">
+      $endif$
+      $it.name$
+      $if(it.url)$
+      </a>
+      $endif$
+    </p>
+    $endfor$
+  </div>
+  $endfor$
+</div>
+$endif$
+
+<div class="quarto-title-meta">
+
+  $if(by-affiliation)$
+  $elseif(by-author)$
+  <div>
+    <div class="quarto-title-meta-heading">$labels.authors$</div>
+    <div class="quarto-title-meta-contents">
+      $for(by-author)$
+       <p>$_title-meta-author.html()$</p>
+      $endfor$
+    </div>
+  </div>
+  $endif$
+  
+  $if(date)$
+  <div>
+    <div class="quarto-title-meta-heading">$labels.published$</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">$date$</p>
+    </div>
+  </div>
+  $endif$
+
+  $if(date-modified)$
+  <div>
+    <div class="quarto-title-meta-heading">$labels.modified$</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date-modified">$date-modified$</p>
+    </div>
+  </div>
+  $endif$
+  
+  $if(status)$
+  <div>
+    <div class="quarto-title-meta-heading">Status</div>
+    <div class="quarto-title-meta-contents">
+      <p><span class="project-status project-status-$status$">$status$</span></p>
+    </div>
+  </div>
+  $endif$
+
+  $if(repository)$
+  <div>
+    <div class="quarto-title-meta-heading">Repository</div>
+    <div class="quarto-title-meta-contents">
+      <p class="repository"><a href="$repository$" target="_blank" rel="noopener">$repository$</a></p>
+    </div>
+  </div>
+  $endif$
+
+  $if(code-license)$
+  <div>
+    <div class="quarto-title-meta-heading">License</div>
+    <div class="quarto-title-meta-contents">
+      <p class="license">$code-license$</p>
+    </div>
+  </div>
+  $endif$
+
+  $if(doi)$
+  <div>
+    <div class="quarto-title-meta-heading">$labels.doi$</div>
+    <div class="quarto-title-meta-contents">
+      <p class="doi">
+        <a href="https://doi.org/$doi$">$doi$</a>
+      </p>
+    </div>
+  </div>
+  $endif$
+</div>
+  
+$if(abstract)$
+<div>
+  <div class="abstract">
+    <div class="block-title">$labels.abstract$</div>
+    $abstract$
+  </div>
+</div>
+$endif$
+
+$if(keywords)$
+<div>
+  <div class="keywords">
+    <div class="block-title">$labels.keywords$</div>
+    <p>$for(keywords)$$it$$sep$, $endfor$</p>
+  </div>
+</div>
+$endif$

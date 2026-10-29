@@ -19,6 +19,18 @@ SOCIAL_CARD_SUFFIX: str = "og-image.png"
 # Pages that use the default card (website.image) instead of a generated one
 DEFAULT_CARD_PAGES: set[str] = {"index.qmd", "404.qmd"}
 
+# Lifecycle of a project page (`status:` in projects/<slug>/index.qmd) and its display label
+PROJECT_STATUSES: dict[str, str] = {
+    "planned": "Planned",
+    "experimental": "Experimental",
+    "active": "Active",
+    "maintained": "Maintained",
+    "paused": "Paused",
+    "completed": "Completed",
+    "deprecated": "Deprecated",
+    "archived": "Archived",
+}
+
 
 @dataclass
 class Page:
@@ -47,6 +59,19 @@ class Page:
     @property
     def isDraft(self) -> bool:
         return bool(self.meta.get("draft", False))
+
+    @property
+    def isProject(self) -> bool:
+        """A project page (projects/<slug>/...), not the projects listing."""
+        parts: tuple[str, ...] = self.relativeSource.parts
+
+        return parts[0] == "projects" and len(parts) > 2
+
+    @property
+    def projectStatus(self) -> str | None:
+        status: Any = self.meta.get("status")
+
+        return PROJECT_STATUSES.get(str(status)) if self.isProject and status else None
 
     @property
     def socialCard(self) -> Path:
@@ -120,6 +145,18 @@ def resolveMetadata(source: Path) -> dict[str, Any]:
 
 def loadSiteConfig() -> dict[str, Any]:
     return yaml.safe_load((PROJECT_DIR / "_quarto.yml").read_text(encoding="utf-8"))
+
+
+def validateProjects(pages: list[Page]) -> None:
+    """Fails the build when a published project has no valid `status`."""
+    errors: list[str] = [
+        f"{page.relativeSource}: status {page.meta.get('status')!r} is not one of {', '.join(PROJECT_STATUSES)}"
+        for page in pages
+        if page.isProject and not page.isDraft and page.projectStatus is None
+    ]
+
+    if errors:
+        raise SystemExit("Invalid project metadata:\n  " + "\n  ".join(errors))
 
 
 def discoverPages() -> list[Page]:

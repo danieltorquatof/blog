@@ -7,18 +7,24 @@ page-layout: full
 listing:
   id: projects-list
   contents: .
-  sort: "date desc"
-  type: grid
+  sort: "date-modified desc"
+  # Grid card with a status badge (projects/_listing.ejs)
+  template: _listing.ejs
   categories: true
-  filter-ui: false
-  sort-ui: [date, title]
+  # Type a status (e.g. "maintained", "archived") to filter the projects
+  filter-ui: [title, description, status]
+  sort-ui: [date-modified, date, title]
   fields: 
-    - image
     - title
     - subtitle
     - categories
     - description
+    - status
     - date
+    - date-modified
+  field-display-names:
+    date: "Started"
+    date-modified: "Updated"
 
 draft: false
 ---

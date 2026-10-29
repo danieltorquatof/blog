@@ -4,6 +4,10 @@ page-layout: article
 
 title-block-banner: false
 
+# Adds Status / Repository / License to the title block (see README: Projects)
+template-partials:
+  - _partials/title-metadata.html
+
 author:
   - name: Daniel Torquato
     url: https://blog.danieltorquatof.spikeystudio.com/aboutMe/resume.html
