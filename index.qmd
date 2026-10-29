@@ -1,6 +1,7 @@
 ---
 title: "DT's Blog"
-description: "Welcome to my personal blog!"
+pagetitle: "Software Engineering, AI & Systems Design"
+description: "Daniel Torquato's blog: posts, projects, articles and achievements on software engineering, data science, artificial intelligence, DevOps and systems design."
 
 jupyter: python3
 

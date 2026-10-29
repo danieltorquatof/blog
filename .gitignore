@@ -1,6 +1,5 @@
-# Poetry files
-poetry.lock
-poetry.toml
+# uv files
+.venv/
 
 # Quarto files
 /.quarto/
@@ -14,3 +13,6 @@ site_libs/
 # Python files
 __pycache__/
 **/*.quarto_ipynb
+
+# Generated social preview images (utils/og_images.py)
+*og-image.png
