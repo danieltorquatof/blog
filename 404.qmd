@@ -10,7 +10,6 @@ listing:
     - articles/*/index.qmd
     - achievements/*/index.qmd
   sort: "date desc"
-  feed: true
   fields:
       - image
       - title

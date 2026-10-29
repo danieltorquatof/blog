@@ -2,7 +2,7 @@
 title: "Post example"
 description: "This is a post example"
 
-date: "01/01/2025"
+date: 2025-01-01
 
 categories:
   - example
@@ -13,7 +13,7 @@ Post example
 
 :::{.column-body}
 <script src="https://giscus.app/client.js"
-        data-repo="danieltorquatof/blog_quarto"
+        data-repo="danieltorquatof/blog"
         data-repo-id="R_kgDONv_J5g"
         data-category="Posts"
         data-mapping="number"
@@ -22,7 +22,7 @@ Post example
         data-reactions-enabled="1"
         data-emit-metadata="0"
         data-input-position="top"
-        data-theme="light"
+        data-theme="preferred_color_scheme"
         data-lang="en"
         data-loading="lazy"
         crossorigin="anonymous"
