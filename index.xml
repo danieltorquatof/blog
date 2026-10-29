@@ -28,44 +28,48 @@
 
 
 
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Updated on October 22, 2026
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The reference implementation received a <a href="https://github.com/danieltorquatof/minecraft-backup/pull/1">reliability and security release</a> and this post now reflects it. Most importantly, <strong>the GitHub token is no longer embedded in the remote URL</strong> (the original version wrote it to the repository config and to the logs). The update also fixes backup commits that could fail silently, stops the server cleanly before the final backup, pauses saving while files are staged, adds CI and moves to the Java 25 image. See the revision history.</p>
+</div>
+</div>
 <hr>
 <section id="reference-implementation" class="level2">
 <h2 class="anchored" data-anchor-id="reference-implementation">Reference Implementation</h2>
 <p>The complete implementation described throughout this post is publicly available in the following repository:</p>
-<p><strong>GitHub Repository</strong><br>
-<a href="https://github.com/danieltorquatof/minecraft-backup">danieltorquatof/minecraft-backup</a></p>
-<p>The project contains the full set of scripts, Docker definitions and utility functions that support the automation flow presented above. Reviewing the code directly in the repository can help contextualise the behaviour of each component and illustrate how the pieces integrate in practice.</p>
+<p><strong>GitHub Repository</strong> <a href="https://github.com/danieltorquatof/minecraft-backup">danieltorquatof/minecraft-backup</a> · <a href="../../projects/minecraft-backup/index.html">project page</a> (status and updates)</p>
+<p>The project contains the full set of scripts, Docker definitions and utility functions that support the automation flow presented below. The excerpts in this post come from commit <a href="https://github.com/danieltorquatof/minecraft-backup/tree/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe"><code>e0cc658</code></a>; reviewing the code directly in the repository can help contextualise the behaviour of each component and illustrate how the pieces integrate in practice.</p>
 <hr>
 </section>
 <section id="key-code-excerpts" class="level2">
 <h2 class="anchored" data-anchor-id="key-code-excerpts">Key Code Excerpts</h2>
-<p>Although the full implementation is available in the repository, a few excerpts help illustrate the mechanics behind the automation layer. The example below shows how the autosave routine delegates world persistence to a dedicated function and then commits the updated data to Git.</p>
+<p>Although the full implementation is available in the repository, a few excerpts help illustrate the mechanics behind the automation layer. The example below shows how the autosave routine guards against overlapping runs and then delegates world persistence to a dedicated function that commits the updated data to Git.</p>
 <section id="scriptsautosave.sh" class="level3">
 <h3 class="anchored" data-anchor-id="scriptsautosave.sh">scripts/autosave.sh</h3>
+<p><a href="https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/scripts/autosave.sh">View on GitHub</a></p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">#!/bin/bash</span></span>
-<span id="cb1-2"><span class="bu" style="color: null;
+<span id="cb1-2"><span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">set</span> <span class="at" style="color: #657422;
+font-style: inherit;"># Periodic backup, run every PERIODIC_INTERVAL minutes while the server is up.</span></span>
+<span id="cb1-3"><span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">-e</span></span>
-<span id="cb1-3"></span>
-<span id="cb1-4"><span class="bu" style="color: null;
-background-color: null;
-font-style: inherit;">source</span> /usr/local/bin/log.sh</span>
+font-style: inherit;"># Can also be run by hand: docker compose exec minecraft /opt/minecraft-backup/scripts/autosave.sh</span></span>
+<span id="cb1-4"></span>
 <span id="cb1-5"><span class="bu" style="color: null;
 background-color: null;
-font-style: inherit;">source</span> /usr/local/bin/saveWorld.sh</span>
+font-style: inherit;">source</span> /opt/minecraft-backup/utils/saveWorld.sh</span>
 <span id="cb1-6"></span>
 <span id="cb1-7"><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">LOG_DIR</span><span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"/var/log/mc-scripts"</span></span>
-<span id="cb1-8"><span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">LOG_FILE</span><span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -76,155 +80,121 @@ background-color: null;
 font-style: inherit;">$LOG_DIR</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">/autosave.log"</span></span>
-<span id="cb1-9"></span>
-<span id="cb1-10"><span class="va" style="color: #111111;
+<span id="cb1-8"></span>
+<span id="cb1-9"><span class="bu" style="color: null;
 background-color: null;
-font-style: inherit;">REPO_DIR</span><span class="op" style="color: #5E5E5E;
+font-style: inherit;">exec</span> <span class="dv" style="color: #AD0000;
 background-color: null;
-font-style: inherit;">=</span><span class="st" style="color: #20794D;
+font-style: inherit;">9</span><span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">"/data/</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$REPO_NAME</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span></span>
-<span id="cb1-11"></span>
-<span id="cb1-12"><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">REPO_URL</span><span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"https://</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$GITHUB_TOKEN</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">@github.com/</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$GITHUB_USER</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">/</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$REPO_NAME</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">.git"</span></span>
-<span id="cb1-13"></span>
-<span id="cb1-14"><span class="ex" style="color: null;
-background-color: null;
-font-style: inherit;">log</span> <span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"AUTOSAVE"</span> <span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"Starting execution..."</span></span>
-<span id="cb1-15"></span>
-<span id="cb1-16"><span class="fu" style="color: #4758AB;
-background-color: null;
-font-style: inherit;">git</span> config <span class="at" style="color: #657422;
-background-color: null;
-font-style: inherit;">--global</span> <span class="at" style="color: #657422;
-background-color: null;
-font-style: inherit;">--add</span> safe.directory <span class="st" style="color: #20794D;
+font-style: inherit;">&gt;</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"</span><span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">$REPO_DIR</span><span class="st" style="color: #20794D;
+font-style: inherit;">$LOCK_FILE</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"</span></span>
-<span id="cb1-17"><span class="fu" style="color: #4758AB;
-background-color: null;
-font-style: inherit;">git</span> config <span class="at" style="color: #657422;
-background-color: null;
-font-style: inherit;">--global</span> init.defaultBranch main</span>
-<span id="cb1-18"></span>
-<span id="cb1-19"><span class="cf" style="color: #003B4F;
+<span id="cb1-10"></span>
+<span id="cb1-11"><span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
-font-style: inherit;">if</span> <span class="bu" style="color: null;
+font-style: inherit;">if</span> <span class="ot" style="color: #003B4F;
 background-color: null;
-font-style: inherit;">[</span> <span class="ot" style="color: #003B4F;
+font-style: inherit;">! </span><span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">!</span> <span class="ot" style="color: #003B4F;
+font-style: inherit;">flock</span> <span class="at" style="color: #657422;
 background-color: null;
-font-style: inherit;">-d</span> <span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$REPO_DIR</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">/.git"</span> <span class="bu" style="color: null;
-background-color: null;
-font-style: inherit;">]</span><span class="kw" style="color: #003B4F;
+font-style: inherit;">-n</span> 9<span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">;</span> <span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">then</span></span>
-<span id="cb1-20">    <span class="ex" style="color: null;
+<span id="cb1-12">  <span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">log</span> <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"AUTOSAVE"</span> <span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">"Repository not created. Initializing new repo at </span><span class="va" style="color: #111111;
+font-style: inherit;">"Another backup is still running. Skipping."</span></span>
+<span id="cb1-13">  <span class="bu" style="color: null;
 background-color: null;
-font-style: inherit;">$REPO_DIR</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">..."</span></span>
-<span id="cb1-21"></span>
-<span id="cb1-22">    <span class="fu" style="color: #4758AB;
-background-color: null;
-font-style: inherit;">git</span> <span class="at" style="color: #657422;
-background-color: null;
-font-style: inherit;">-C</span> <span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$REPO_DIR</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span> init</span>
-<span id="cb1-23"></span>
-<span id="cb1-24">    <span class="ex" style="color: null;
-background-color: null;
-font-style: inherit;">log</span> <span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"AUTOSAVE"</span> <span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"Adding remote origin: </span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$REPO_URL</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span></span>
-<span id="cb1-25">    </span>
-<span id="cb1-26">    <span class="fu" style="color: #4758AB;
-background-color: null;
-font-style: inherit;">git</span> <span class="at" style="color: #657422;
-background-color: null;
-font-style: inherit;">-C</span> <span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$REPO_DIR</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span> remote add origin <span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$REPO_URL</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span></span>
-<span id="cb1-27"><span class="cf" style="color: #003B4F;
+font-style: inherit;">exit</span> 0</span>
+<span id="cb1-14"><span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">fi</span></span>
-<span id="cb1-28"></span>
-<span id="cb1-29"><span class="ex" style="color: null;
+<span id="cb1-15"></span>
+<span id="cb1-16"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="ot" style="color: #003B4F;
+background-color: null;
+font-style: inherit;">! </span><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">server_online</span><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">;</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">then</span></span>
+<span id="cb1-17">  <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">log</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"AUTOSAVE"</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Server is not accepting RCON commands yet. Skipping."</span></span>
+<span id="cb1-18">  <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">exit</span> 0</span>
+<span id="cb1-19"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">fi</span></span>
+<span id="cb1-20"></span>
+<span id="cb1-21"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">log</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"AUTOSAVE"</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Starting execution..."</span></span>
+<span id="cb1-22"></span>
+<span id="cb1-23"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="ot" style="color: #003B4F;
+background-color: null;
+font-style: inherit;">! </span><span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">saveWorld</span> <span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">"AUTOSAVE"</span></span>
-<span id="cb1-30"></span>
-<span id="cb1-31"><span class="ex" style="color: null;
+font-style: inherit;">"AUTOSAVE"</span><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">;</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">then</span></span>
+<span id="cb1-24">  <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">log</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"AUTOSAVE"</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Execution failed."</span></span>
+<span id="cb1-25">  <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">exit</span> 1</span>
+<span id="cb1-26"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">fi</span></span>
+<span id="cb1-27"></span>
+<span id="cb1-28"><span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">log</span> <span class="st" style="color: #20794D;
 background-color: null;
@@ -234,51 +204,21 @@ font-style: inherit;">"Execution completed."</span></span></code></pre></div></d
 </section>
 <section id="utilssaveworld.sh" class="level3">
 <h3 class="anchored" data-anchor-id="utilssaveworld.sh">utils/saveWorld.sh</h3>
+<p><a href="https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/utils/saveWorld.sh">View on GitHub</a></p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">#!/bin/bash</span></span>
-<span id="cb2-2"></span>
-<span id="cb2-3"><span class="bu" style="color: null;
-background-color: null;
-font-style: inherit;">source</span> /usr/local/bin/log.sh</span>
-<span id="cb2-4"></span>
-<span id="cb2-5"><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">RCON_HOST</span><span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"localhost"</span></span>
-<span id="cb2-6"><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">RCON_PORT</span><span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">${RCON_PORT</span><span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">:-</span>25575<span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">}</span></span>
-<span id="cb2-7"><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">RCON_PASS</span><span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$RCON_PASSWORD</span></span>
-<span id="cb2-8"></span>
-<span id="cb2-9"><span class="fu" style="color: #4758AB;
+font-style: inherit;"># Flushes the world to disk (when the server is running), commits every change and pushes it.</span></span>
+<span id="cb2-2"><span class="fu" style="color: #4758AB;
 background-color: null;
 font-style: inherit;">saveWorld()</span> <span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">{</span></span>
-<span id="cb2-10">  <span class="bu" style="color: null;
+<span id="cb2-3">  <span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">local</span> <span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">PREFIX</span><span class="op" style="color: #5E5E5E;
+font-style: inherit;">prefix</span><span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
@@ -287,12 +227,212 @@ background-color: null;
 font-style: inherit;">$1</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"</span></span>
-<span id="cb2-11"></span>
-<span id="cb2-12">  <span class="bu" style="color: null;
+<span id="cb2-4">  <span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">local</span> <span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">UTC_NOW</span><span class="op" style="color: #5E5E5E;
+font-style: inherit;">online</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>false</span>
+<span id="cb2-5"></span>
+<span id="cb2-6">  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># ... ensure_repo prepares the repository (omitted)</span></span>
+<span id="cb2-7"></span>
+<span id="cb2-8">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">server_online</span><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">;</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">then</span></span>
+<span id="cb2-9">    <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">online</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>true</span>
+<span id="cb2-10"></span>
+<span id="cb2-11">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">rcon</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'tellraw @a {"text":"📂 Backup started!","color":"gold"}'</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;</span>/dev/null</span>
+<span id="cb2-12"></span>
+<span id="cb2-13">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Pause automatic saving so region files are not rewritten while they are staged.</span></span>
+<span id="cb2-14">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">rcon</span> save-off <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;</span>/dev/null</span>
+<span id="cb2-15">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">rcon</span> save-all flush <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;</span>/dev/null</span>
+<span id="cb2-16">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">fi</span></span>
+<span id="cb2-17"></span>
+<span id="cb2-18">  <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">local</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">add_status</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>0</span>
+<span id="cb2-19">  <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">repo_git</span> add <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">-A</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">||</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">add_status</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">$?</span></span>
+<span id="cb2-20"></span>
+<span id="cb2-21">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">[</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">$online</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span> <span class="ot" style="color: #003B4F;
+background-color: null;
+font-style: inherit;">=</span> true <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">]</span><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">;</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">then</span></span>
+<span id="cb2-22">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">rcon</span> save-on <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;</span>/dev/null <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">||</span> <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">log</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">$prefix</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"WARNING: could not re-enable automatic saving."</span></span>
+<span id="cb2-23">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">fi</span></span>
+<span id="cb2-24"></span>
+<span id="cb2-25">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">[</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">$add_status</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span> <span class="ot" style="color: #003B4F;
+background-color: null;
+font-style: inherit;">-ne</span> 0 <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">]</span><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">;</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">then</span></span>
+<span id="cb2-26">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">log</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">$prefix</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"ERROR: git add failed."</span></span>
+<span id="cb2-27">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb2-28">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">fi</span></span>
+<span id="cb2-29"></span>
+<span id="cb2-30">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">repo_git</span> diff <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--cached</span> <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--quiet</span><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">;</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">then</span></span>
+<span id="cb2-31">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">log</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">$prefix</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"No changes since the last backup."</span></span>
+<span id="cb2-32">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span></span>
+<span id="cb2-33">    <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">local</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">commit_msg</span></span>
+<span id="cb2-34">    <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">commit_msg</span><span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
@@ -308,159 +448,181 @@ font-style: inherit;">"%Y-%m-%dT%H:%M:%SZ"</span><span class="va" style="color: 
 background-color: null;
 font-style: inherit;">)</span><span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">"</span></span>
-<span id="cb2-13">  <span class="bu" style="color: null;
-background-color: null;
-font-style: inherit;">local</span> <span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">COMMIT_MSG</span><span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$UTC_NOW</span><span class="st" style="color: #20794D;
-background-color: null;
 font-style: inherit;"> - </span><span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">$PREFIX</span><span class="st" style="color: #20794D;
+font-style: inherit;">$prefix</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"</span></span>
-<span id="cb2-14"></span>
-<span id="cb2-15">  <span class="ex" style="color: null;
+<span id="cb2-35"></span>
+<span id="cb2-36">    <span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">rcon-cli</span> <span class="st" style="color: #20794D;
+font-style: inherit;">repo_git</span> commit <span class="at" style="color: #657422;
 background-color: null;
-font-style: inherit;">'tellraw @a {"text":"📂 Backup started!","color":"gold"}'</span></span>
-<span id="cb2-16"></span>
-<span id="cb2-17">  <span class="fu" style="color: #4758AB;
-background-color: null;
-font-style: inherit;">sleep</span> 2</span>
-<span id="cb2-18"></span>
-<span id="cb2-19">  <span class="ex" style="color: null;
-background-color: null;
-font-style: inherit;">rcon-cli</span> <span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"save-all"</span></span>
-<span id="cb2-20"></span>
-<span id="cb2-21">  <span class="fu" style="color: #4758AB;
-background-color: null;
-font-style: inherit;">sleep</span> 2</span>
-<span id="cb2-22"></span>
-<span id="cb2-23">  <span class="ex" style="color: null;
-background-color: null;
-font-style: inherit;">log</span> <span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$PREFIX</span> <span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"World successfully saved."</span></span>
-<span id="cb2-24"></span>
-<span id="cb2-25">  <span class="fu" style="color: #4758AB;
-background-color: null;
-font-style: inherit;">git</span> <span class="at" style="color: #657422;
-background-color: null;
-font-style: inherit;">-C</span> <span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$REPO_DIR</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span> add .</span>
-<span id="cb2-26">  <span class="fu" style="color: #4758AB;
-background-color: null;
-font-style: inherit;">git</span> <span class="at" style="color: #657422;
-background-color: null;
-font-style: inherit;">-C</span> <span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$REPO_DIR</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span> commit <span class="at" style="color: #657422;
+font-style: inherit;">-q</span> <span class="at" style="color: #657422;
 background-color: null;
 font-style: inherit;">-m</span> <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"</span><span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">$COMMIT_MSG</span><span class="st" style="color: #20794D;
+font-style: inherit;">$commit_msg</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"</span> <span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
-font-style: inherit;">||</span> <span class="ex" style="color: null;
+font-style: inherit;">||</span> <span class="cf" style="color: #003B4F;
 background-color: null;
-font-style: inherit;">log</span> <span class="st" style="color: #20794D;
+font-weight: bold;
+font-style: inherit;">return</span> <span class="dv" style="color: #AD0000;
 background-color: null;
-font-style: inherit;">"AUTOSAVE"</span> <span class="st" style="color: #20794D;
+font-style: inherit;">1</span></span>
+<span id="cb2-37">  <span class="cf" style="color: #003B4F;
 background-color: null;
-font-style: inherit;">"Nothing to commit"</span></span>
-<span id="cb2-27"></span>
-<span id="cb2-28">  <span class="cf" style="color: #003B4F;
+font-weight: bold;
+font-style: inherit;">fi</span></span>
+<span id="cb2-38"></span>
+<span id="cb2-39">  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Also sends commits left behind by previous failed pushes.</span></span>
+<span id="cb2-40">  <span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">if</span> <span class="ot" style="color: #003B4F;
 background-color: null;
-font-style: inherit;">! </span><span class="fu" style="color: #4758AB;
+font-style: inherit;">! </span><span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">git</span> <span class="at" style="color: #657422;
+font-style: inherit;">repo_git</span> push <span class="at" style="color: #657422;
 background-color: null;
-font-style: inherit;">-C</span> <span class="st" style="color: #20794D;
+font-style: inherit;">-q</span> <span class="at" style="color: #657422;
 background-color: null;
-font-style: inherit;">"</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">$REPO_DIR</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">"</span> push<span class="kw" style="color: #003B4F;
+font-style: inherit;">-u</span> origin HEAD<span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">;</span> <span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">then</span></span>
-<span id="cb2-29">      <span class="ex" style="color: null;
+<span id="cb2-41">    <span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">log</span> <span class="va" style="color: #111111;
+font-style: inherit;">log</span> <span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">$PREFIX</span> <span class="st" style="color: #20794D;
+font-style: inherit;">"</span><span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">"Upstream not set. Setting upstream and retrying push..."</span></span>
-<span id="cb2-30"></span>
-<span id="cb2-31">      <span class="fu" style="color: #4758AB;
+font-style: inherit;">$prefix</span><span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">git</span> <span class="at" style="color: #657422;
+font-style: inherit;">"</span> <span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">-C</span> <span class="st" style="color: #20794D;
+font-style: inherit;">"ERROR: git push failed."</span></span>
+<span id="cb2-42">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># ... warns the players in game (omitted)</span></span>
+<span id="cb2-43">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb2-44">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">fi</span></span>
+<span id="cb2-45"></span>
+<span id="cb2-46">  <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">log</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">$prefix</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Backup successfully pushed."</span></span>
+<span id="cb2-47"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">}</span></span></code></pre></div></div>
+</section>
+<section id="utilscommon.sh-credentials" class="level3">
+<h3 class="anchored" data-anchor-id="utilscommon.sh-credentials">utils/common.sh: credentials</h3>
+<p><a href="https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/utils/common.sh">View on GitHub</a></p>
+<p>The token is handed to Git through an inline credential helper defined in environment variables, so it never reaches the remote URL, a config file or the logs:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">export</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">GIT_TERMINAL_PROMPT</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>0</span>
+<span id="cb3-2"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">export</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">GIT_CONFIG_COUNT</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>3</span>
+<span id="cb3-3"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">export</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">GIT_CONFIG_KEY_0</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"safe.directory"</span></span>
+<span id="cb3-4"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">export</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">GIT_CONFIG_VALUE_0</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"</span><span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">$REPO_DIR</span><span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">"</span> push <span class="at" style="color: #657422;
+font-style: inherit;">"</span></span>
+<span id="cb3-5"><span class="bu" style="color: null;
 background-color: null;
-font-style: inherit;">-u</span> origin main</span>
-<span id="cb2-32">  <span class="cf" style="color: #003B4F;
+font-style: inherit;">export</span> <span class="va" style="color: #111111;
 background-color: null;
-font-weight: bold;
-font-style: inherit;">fi</span></span>
-<span id="cb2-33"></span>
-<span id="cb2-34">  <span class="ex" style="color: null;
+font-style: inherit;">GIT_CONFIG_KEY_1</span><span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">log</span> <span class="va" style="color: #111111;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">$PREFIX</span> <span class="st" style="color: #20794D;
+font-style: inherit;">"init.defaultBranch"</span></span>
+<span id="cb3-6"><span class="bu" style="color: null;
 background-color: null;
-font-style: inherit;">"Autosave successfully deployed."</span></span>
-<span id="cb2-35"></span>
-<span id="cb2-36">  <span class="ex" style="color: null;
+font-style: inherit;">export</span> <span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">rcon-cli</span> <span class="st" style="color: #20794D;
+font-style: inherit;">GIT_CONFIG_VALUE_1</span><span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">'tellraw @a {"text":"📁 Backup completed!","color":"green"}'</span></span>
-<span id="cb2-37"><span class="kw" style="color: #003B4F;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
-font-weight: bold;
-font-style: inherit;">}</span></span></code></pre></div></div>
-<p>These sections illustrate the predictable structure that supports periodic and manual world preservation. The underlying model is intentionally minimalistic so the logic remains transparent and easy to debug.</p>
+font-style: inherit;">"</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">$GIT_BRANCH</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span></span>
+<span id="cb3-7"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">export</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">GIT_CONFIG_KEY_2</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"credential.helper"</span></span>
+<span id="cb3-8"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">export</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">GIT_CONFIG_VALUE_2</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'!f() { test "$1" = get &amp;&amp; test -n "$GITHUB_TOKEN" &amp;&amp; echo "username=${GITHUB_USER:-x-access-token}" &amp;&amp; echo "password=$GITHUB_TOKEN"; }; f'</span></span></code></pre></div></div>
+<p>These sections illustrate the predictable structure that supports periodic and manual world preservation. The underlying model is intentionally minimalistic so the logic remains transparent and easy to debug, while every step reports failures instead of assuming success.</p>
 <hr>
 <p>Persistent digital environments demand predictable behaviour. Whether managing corporate infrastructure or personal projects, stability depends on systems that continue to operate even when attention shifts elsewhere. Over time I realised that reliable automation is not only relevant in professional settings. It can also solve surprisingly ordinary problems.</p>
 <p>A practical example emerged in my own home. My partner and I often play Minecraft together and our sessions sometimes last several hours. Anyone who has hosted a local or containerised server knows that crashes or unexpected shutdowns can corrupt the world or erase progress. After losing entire builds on more than one occasion I started thinking seriously about how to design a stable and automatic backup mechanism that would remove the risk altogether.</p>
@@ -478,92 +640,114 @@ font-style: inherit;">}</span></span></code></pre></div></div>
 <div>
 <pre class="mermaid mermaid-js">flowchart TB;
   A[Container starts]
-  B[Initialisation script]
-  C{Repository exists?}
-  D[Clone or update repository]
-  E[Prepare empty repository]
-  F[Start Minecraft server]
-  G[Periodic loop starts]
-  H[Autosave script executes every N minutes]
-  I[saveWorld.sh]
-  J[Git add and commit]
-  K[Push to GitHub]
-  L[Container receives stop signal]
-  M[Shutdown script]
+  B[Validate configuration]
+  C[Initialisation script]
+  D{Remote has backups?}
+  E[Clone or fast-forward repository]
+  F[Prepare empty repository]
+  G[Start Minecraft server]
+  H[Periodic loop starts]
+  I[Autosave script executes every N minutes]
+  J[saveWorld.sh]
+  K[Pause saving and flush world]
+  L[Git add, resume saving, commit if changed]
+  M[Push to GitHub]
+  N[Container receives stop signal]
+  O[Stop server gracefully]
+  P[Shutdown script]
 
   A --&gt; B
   B --&gt; C
+  C --&gt; D
 
-  C -- Yes --&gt; D
-  C -- No --&gt; E
+  D -- Yes --&gt; E
+  D -- No --&gt; F
 
-  D --&gt; F
-  E --&gt; F
-
+  E --&gt; G
   F --&gt; G
-  G --&gt; H
 
+  G --&gt; H
   H --&gt; I
+
   I --&gt; J
   J --&gt; K
-
-  F --&gt; L
+  K --&gt; L
   L --&gt; M
-  M --&gt; I
+
+  G --&gt; N
+  N --&gt; O
+  O --&gt; P
+  P --&gt; J
 </pre>
 </div>
 <p></p></figure><p></p>
 </div>
 </div>
 </div>
-<p>This diagram reflects the core concept. Every event leads to a deterministic and observable action. World data is always saved, always committed and always pushed.</p>
+<p>This diagram reflects the core concept. Every event leads to a deterministic and observable action. World data is always saved, always committed and always pushed, and any step that fails is logged and reported instead of silently ignored.</p>
 <hr>
 </section>
 <section id="understanding-the-file-structure" class="level2">
 <h2 class="anchored" data-anchor-id="understanding-the-file-structure">Understanding the File Structure</h2>
 <p>The project uses a modular structure that separates concerns and creates predictable behaviours. Each file contributes uniquely to the automation pipeline.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><span class="bu" style="color: null;
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">.</span></span>
-<span id="cb3-2"><span class="ex" style="color: null;
+<span id="cb4-2"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">├──</span> .github/workflows/ci.yml   <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># ShellCheck, Hadolint, compose validation and image build</span></span>
+<span id="cb4-3"><span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">├──</span> docker-compose.yml</span>
-<span id="cb3-3"><span class="ex" style="color: null;
+<span id="cb4-4"><span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">├──</span> Dockerfile</span>
-<span id="cb3-4"><span class="ex" style="color: null;
+<span id="cb4-5"><span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">├──</span> entrypoint.sh</span>
-<span id="cb3-5"><span class="ex" style="color: null;
+font-style: inherit;">├──</span> entrypoint.sh              <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Startup → periodic loop → graceful shutdown</span></span>
+<span id="cb4-6"><span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">├──</span> .env.example</span>
-<span id="cb3-6"><span class="ex" style="color: null;
-background-color: null;
-font-style: inherit;">├──</span> .gitignore</span>
-<span id="cb3-7"><span class="ex" style="color: null;
-background-color: null;
-font-style: inherit;">├──</span> README.md</span>
-<span id="cb3-8"><span class="ex" style="color: null;
+<span id="cb4-7"><span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">├──</span> scripts</span>
-<span id="cb3-9"><span class="ex" style="color: null;
+<span id="cb4-8"><span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">│</span>   ├── autosave.sh</span>
-<span id="cb3-10"><span class="ex" style="color: null;
+font-style: inherit;">│</span>   ├── autosave.sh            <span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">│</span>   ├── init.sh</span>
-<span id="cb3-11"><span class="ex" style="color: null;
+font-style: inherit;"># Periodic backup (can also be run by hand)</span></span>
+<span id="cb4-9"><span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">│</span>   ├── shutdown.sh</span>
-<span id="cb3-12"><span class="ex" style="color: null;
+font-style: inherit;">│</span>   ├── init.sh                <span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">├──</span> utils</span>
-<span id="cb3-13"><span class="ex" style="color: null;
+font-style: inherit;"># Restores/clones the world before the server starts</span></span>
+<span id="cb4-10"><span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">│</span>   ├── log.sh</span>
-<span id="cb3-14"><span class="ex" style="color: null;
+font-style: inherit;">│</span>   └── shutdown.sh            <span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">│</span>   ├── saveWorld.sh</span></code></pre></div></div>
+font-style: inherit;"># Final backup after the server stops</span></span>
+<span id="cb4-11"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">└──</span> utils</span>
+<span id="cb4-12">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">├──</span> common.sh              <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Shared configuration, git/RCON helpers</span></span>
+<span id="cb4-13">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">├──</span> log.sh                 <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Logging to stdout and ./logs</span></span>
+<span id="cb4-14">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">└──</span> saveWorld.sh           <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Flush → commit → push</span></span></code></pre></div></div>
 <p>Each one will be explained individually so the full picture becomes clear.</p>
 <hr>
 </section>
@@ -573,17 +757,18 @@ font-style: inherit;">│</span>   ├── saveWorld.sh</span></code></pre></d
 <h3 class="anchored" data-anchor-id="docker-compose.yml">docker-compose.yml</h3>
 <p>Defines how the server is launched. It handles:</p>
 <ul>
-<li>Port exposure for gameplay and RCON access;</li>
+<li>Port exposure for gameplay only (<code>MC_HOST_PORT</code>, <code>25565</code> by default). RCON stays inside the container, since backups are the only thing that uses it;</li>
 <li>Environment variable loading;</li>
 <li>Persistence of the Minecraft world and logs;</li>
-<li>Building the custom image from the local Dockerfile.</li>
+<li>Building the custom image from the local Dockerfile;</li>
+<li>A three minute <code>stop_grace_period</code>, so Docker does not kill the container while the final backup is being pushed.</li>
 </ul>
 <p>Its purpose is to maintain stability across restarts and ensure that all automation scripts remain present inside the container.</p>
 <hr>
 </section>
 <section id="dockerfile" class="level3">
 <h3 class="anchored" data-anchor-id="dockerfile">Dockerfile</h3>
-<p>The Dockerfile extends the “official” image <code>itzg/minecraft-server:java21</code> then introduces all custom scripts. This combination provides the reliability of a well maintained base image while enabling custom behaviour controlled entirely by our own entrypoint.</p>
+<p>The Dockerfile extends the “official” image <code>itzg/minecraft-server:java25</code> (configurable through <code>MC_IMAGE_TAG</code> for older Minecraft versions) then installs all custom scripts under <code>/opt/minecraft-backup</code>. This combination provides the reliability of a well maintained base image while enabling custom behaviour controlled entirely by our own entrypoint.</p>
 <div class="cell" data-fig-width="100%" data-layout-align="center">
 <div class="cell-output-display">
 <div>
@@ -615,11 +800,11 @@ font-style: inherit;">│</span>   ├── saveWorld.sh</span></code></pre></d
 <p>This script coordinates the lifecycle of the server and backup system.</p>
 <p>It performs:</p>
 <ol type="1">
-<li>Initialisation;</li>
-<li>Startup synchronisation;</li>
+<li>Configuration validation (repository name, token, interval);</li>
+<li>Initialisation and startup synchronisation;</li>
 <li>Launch of the periodic autosave loop;</li>
 <li>Delegation to the official Minecraft server start script;</li>
-<li>Graceful shutdown and final backup.</li>
+<li>Graceful shutdown: the server is stopped first, then the final backup runs.</li>
 </ol>
 <p>A second diagram helps illustrate this behaviour.</p>
 <div class="cell" data-fig-width="100%" data-layout-align="center">
@@ -629,20 +814,26 @@ font-style: inherit;">│</span>   ├── saveWorld.sh</span></code></pre></d
 <div>
 <pre class="mermaid mermaid-js">flowchart TB;
   A[entrypoint.sh starts]
+  V{Configuration valid?}
+  X[Exit with a clear error]
   B[Run init.sh]
   C[Configure and sync repository]
   D[Start autosave loop in background]
   E[Begin Minecraft server]
   F{Stop signal received?}
+  S[Stop server and wait for it to save]
   G[Run shutdown.sh]
-  H[Final save and push]
+  H[Final commit and push]
 
-  A --&gt; B
+  A --&gt; V
+  V -- No --&gt; X
+  V -- Yes --&gt; B
   B --&gt; C
   C --&gt; D
   D --&gt; E
   E --&gt; F
-  F -- Yes --&gt; G
+  F -- Yes --&gt; S
+  S --&gt; G
   G --&gt; H
   F -- No --&gt; E
 </pre>
@@ -651,24 +842,29 @@ font-style: inherit;">│</span>   ├── saveWorld.sh</span></code></pre></d
 </div>
 </div>
 </div>
-<p>This flow ensures that no world data is lost, regardless of how the container stops.</p>
+<p>This flow ensures that no world data is lost, regardless of how the container stops. The same final backup also runs when the server stops on its own, for example after <code>/stop</code> in game.</p>
 <hr>
 </section>
 </section>
 <section id="utility-layers" class="level2">
 <h2 class="anchored" data-anchor-id="utility-layers">Utility Layers</h2>
+<section id="utilscommon.sh" class="level3">
+<h3 class="anchored" data-anchor-id="utilscommon.sh">utils/common.sh</h3>
+<p>Shared configuration used by every script: the Git identity (commits fail without a committer), the credential helper shown above, RCON helpers and a function that runs Git as the same user as the server, so no world file ends up owned by root.</p>
+<hr>
+</section>
 <section id="utilslog.sh" class="level3">
 <h3 class="anchored" data-anchor-id="utilslog.sh">utils/log.sh</h3>
-<p>A lightweight logger that standardises how each script communicates events. Every log entry includes a timestamp and prefix. This improves verification and troubleshooting. Logs are written to persistent storage so they survive container recreation.</p>
+<p>A lightweight logger that standardises how each script communicates events. Every log entry includes a timestamp and prefix and goes both to <code>docker compose logs</code> and to persistent storage, so it survives container recreation. This improves verification and troubleshooting.</p>
 <hr>
 </section>
 <section id="utilssaveworld.sh-1" class="level3">
 <h3 class="anchored" data-anchor-id="utilssaveworld.sh-1">utils/saveWorld.sh</h3>
 <p>The most responsibilities in the automation pipeline concentrate here. It performs:</p>
 <ul>
-<li>In game world save via RCON</li>
-<li>Git staging and committing</li>
-<li>Push synchronisation with GitHub</li>
+<li>In game world flush via RCON, with automatic saving paused while files are staged</li>
+<li>Git staging and committing (only when something changed)</li>
+<li>Push synchronisation with GitHub, including commits left behind by earlier failed pushes</li>
 <li>Messaging for both users and logs</li>
 </ul>
 <p>It represents the core reliability mechanism. If this script functions correctly, every world state becomes recoverable.</p>
@@ -679,17 +875,17 @@ font-style: inherit;">│</span>   ├── saveWorld.sh</span></code></pre></d
 <h2 class="anchored" data-anchor-id="lifecycle-scripts">Lifecycle Scripts</h2>
 <section id="scriptsinit.sh" class="level3">
 <h3 class="anchored" data-anchor-id="scriptsinit.sh">scripts/init.sh</h3>
-<p>Executed only during startup. It validates the remote repository, checks whether it exists and whether it is empty. It clones or prepares the repository so the world directory becomes fully managed by Git. This step prevents drift between the running server and the stored history.</p>
+<p>Executed only during startup. It validates the remote repository, checks whether it exists and whether it is empty. It clones the repository, fast-forwards an existing clone or prepares a new one so the world directory becomes fully managed by Git. A local world without history is moved aside instead of being overwritten. This step prevents drift between the running server and the stored history.</p>
 <hr>
 </section>
 <section id="scriptsautosave.sh-1" class="level3">
 <h3 class="anchored" data-anchor-id="scriptsautosave.sh-1">scripts/autosave.sh</h3>
-<p>Runs periodically based on the interval defined in the environment variables. It configures Git, initialises a new repository if needed and calls <code>saveWorld.sh</code>. These periodic commits create a complete backup timeline.</p>
+<p>Runs periodically based on the interval defined in the environment variables. It skips the run when another backup is still in progress or the server is not ready yet, and otherwise calls <code>saveWorld.sh</code>. These periodic commits create a complete backup timeline.</p>
 <hr>
 </section>
 <section id="scriptsshutdown.sh" class="level3">
 <h3 class="anchored" data-anchor-id="scriptsshutdown.sh">scripts/shutdown.sh</h3>
-<p>Triggered on termination of the container. It immediately calls <code>saveWorld.sh</code> so the final server state is stored safely. This prevents data corruption and makes the server restart friendly regardless of how the container was stopped.</p>
+<p>Triggered after the server has stopped. It waits for any backup still in progress and calls <code>saveWorld.sh</code> so the final server state is stored safely. Because the server has already flushed the world to disk, this prevents data corruption and makes the server restart friendly regardless of how the container was stopped.</p>
 <hr>
 </section>
 </section>
@@ -699,13 +895,12 @@ font-style: inherit;">│</span>   ├── saveWorld.sh</span></code></pre></d
 <h3 class="anchored" data-anchor-id="env.example">.env.example</h3>
 <p>Guides the user in defining:</p>
 <ul>
-<li>GitHub repository credentials</li>
-<li>Minecraft server settings</li>
-<li>RCON access</li>
-<li>Backup intervals</li>
+<li>GitHub repository credentials (a fine-grained token limited to the backup repository is enough)</li>
+<li>Minecraft server settings and the base image tag</li>
+<li>Backup intervals and an optional Git remote other than GitHub</li>
 <li>Metadata for commits</li>
 </ul>
-<p>This separation of configuration strengthens clarity and reduces accidental misconfiguration.</p>
+<p>This separation of configuration strengthens clarity and reduces accidental misconfiguration, and the entrypoint refuses to start with an invalid one.</p>
 <hr>
 </section>
 </section>
@@ -713,7 +908,7 @@ font-style: inherit;">│</span>   ├── saveWorld.sh</span></code></pre></d
 <h1>Why This Matters</h1>
 <p>Although the technical implementation is interesting, the motivation emerged from a real problem. Playing Minecraft with my partner is one of our favourite activities and losing progress due to corruption or abrupt shutdowns was frustrating. Manual backups were easy to forget and relying on memory alone was not sustainable.</p>
 <p>Creating an infrastructure that handles backups automatically removed the cognitive load entirely. It also ensured that every session became safe. The system evolved from a personal inconvenience into an elegant example of how automation thinking can improve both professional and personal digital environments.</p>
-<p>This project demonstrates that reliable systems do not appear spontaneously. They are built through reasoning, testing and iteration. Whether used for game worlds, business processes or experimental environments, the principles remain consistent: predictable automation, clear observability and robust fallback mechanisms.</p>
+<p>This project demonstrates that reliable systems do not appear spontaneously. They are built through reasoning, testing and iteration. The first version already worked for everyday use, yet running it for months revealed failures that only appear over time: commits that failed without a committer identity, a token that leaked into the logs, a final backup racing against the server’s own shutdown. Whether used for game worlds, business processes or experimental environments, the principles remain consistent: predictable automation, clear observability and robust fallback mechanisms.</p>
 <hr>
 </section>
 <section id="final-considerations" class="level1 page-columns page-full">
@@ -721,12 +916,20 @@ font-style: inherit;">│</span>   ├── saveWorld.sh</span></code></pre></d
 <p>Constructing automation flows like this establishes a foundation for trust in any persistent system. Once the structure works without supervision, users are free to focus on the experience rather than maintenance. In my case it allowed long sessions of building and exploration with my partner to continue without disruption.</p>
 <p>I hope this explanation clarifies not only what the system does, but also how it was structured and why the reasoning behind it led to a reliable design.</p>
 <hr>
+<section id="revision-history" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="revision-history">Revision history</h2>
+<ul>
+<li><strong>October 22, 2026</strong>: Updated for the reliability and security release of the reference implementation (<a href="https://github.com/danieltorquatof/minecraft-backup/pull/1">PR #1</a>): new code excerpts, credential handling, graceful shutdown, consistent snapshots, Java 25 image and CI.</li>
+<li><strong>December 4, 2025</strong>: First published.</li>
+</ul>
+<hr>
 <div class="column-body">
 <script src="https://giscus.app/client.js" data-repo="danieltorquatof/blog" data-repo-id="R_kgDONv_J5g" data-category="Posts" data-mapping="number" data-term="40" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="preferred_color_scheme" data-lang="en" data-loading="lazy" crossorigin="anonymous" async="">
 </script>
 </div>
 
 
+</section>
 </section>
 
  ]]></description>
@@ -736,6 +939,118 @@ font-style: inherit;">│</span>   ├── saveWorld.sh</span></code></pre></d
   <category>Systems Design</category>
   <category>Reliability Engineering</category>
   <guid>https://blog.danieltorquatof.spikeystudio.com/posts/reliable-automation-pipelines-persistent-game-worlds/</guid>
+  <pubDate>Thu, 04 Dec 2025 00:00:00 GMT</pubDate>
+</item>
+<item>
+  <title>Minecraft Backup</title>
+  <dc:creator>Daniel Torquato</dc:creator>
+  <link>https://blog.danieltorquatof.spikeystudio.com/projects/minecraft-backup/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<hr>
+<section id="overview" class="level2">
+<h2 class="anchored" data-anchor-id="overview">Overview</h2>
+<p>Minecraft Backup wraps the <a href="https://docker-minecraft-server.readthedocs.io/en/latest/"><code>itzg/minecraft-server</code></a> image with a custom entrypoint that treats the world folder as a Git repository. The world is restored from GitHub when the container starts, committed and pushed at a fixed interval while people play, and backed up one last time after the server stops cleanly, so a world can always be recovered, moved to another machine or rolled back to an earlier commit.</p>
+<ul>
+<li><strong>Periodic backups</strong>: a Git commit every <code>PERIODIC_INTERVAL</code> minutes, created only when something changed.</li>
+<li><strong>Consistent snapshots</strong>: automatic saving is paused (<code>save-off</code> / <code>save-all flush</code>) while files are staged.</li>
+<li><strong>Graceful shutdown</strong>: the server stops first, then the final backup is committed and pushed.</li>
+<li><strong>Safe credentials</strong>: the GitHub token stays in memory, never in the remote URL, the repository config or the logs.</li>
+<li><strong>Any Git remote</strong>: GitHub by default, or GitLab, Gitea or a bare repository through <code>GIT_REMOTE_URL</code>.</li>
+<li><strong>Compatible with the official image</strong>: every <code>itzg/minecraft-server</code> variable still works.</li>
+</ul>
+</section>
+<section id="quick-start" class="level2">
+<h2 class="anchored" data-anchor-id="quick-start">Quick start</h2>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">git</span> clone https://github.com/danieltorquatof/minecraft-backup.git</span>
+<span id="cb1-2"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">cd</span> minecraft-backup</span>
+<span id="cb1-3"><span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">cp</span> .env.example .env   <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># set GITHUB_USER, GITHUB_TOKEN and REPO_NAME</span></span>
+<span id="cb1-4"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">docker</span> compose up <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">-d</span> <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--build</span></span></code></pre></div></div>
+<p>The <a href="https://github.com/danieltorquatof/minecraft-backup#readme">README</a> covers the token permissions, every variable and how to restore an older backup.</p>
+</section>
+<section id="updates" class="level2">
+<h2 class="anchored" data-anchor-id="updates">Updates</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Date</th>
+<th>Update</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>2026-10-22</td>
+<td><strong>Reliability and security release</strong> (<a href="https://github.com/danieltorquatof/minecraft-backup/pull/1">PR #1</a>): backup commits no longer fail silently, graceful shutdown before the final backup, token removed from remote URLs and logs, consistent snapshots with backup locking, safer handling of empty or diverged remotes, RCON no longer published, Java 25 base image and CI (ShellCheck, Hadolint, compose validation, image build).</td>
+</tr>
+<tr class="even">
+<td>2025-12-04</td>
+<td><strong>Initial release</strong>: periodic Git backups to GitHub, restore on startup and backup on shutdown.</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="write-ups" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="write-ups">Write-ups</h2>
+<div id="listing-write-ups" class="quarto-listing quarto-listing-container-default">
+<div class="list quarto-listing-default">
+<div class="quarto-post image-right" data-index="0" data-categories="RGV2T3BzJTJDQXV0b21hdGlvbiUyQ0luZnJhc3RydWN0dXJlJTJDU3lzdGVtcyUyMERlc2lnbiUyQ1JlbGlhYmlsaXR5JTIwRW5naW5lZXJpbmc=" data-listing-date-sort="1764806400000" data-listing-file-modified-sort="1793304082000" data-listing-date-modified-sort="1792627200000" data-listing-reading-time-sort="12" data-listing-word-count-sort="2370">
+<div class="body">
+<h3 class="no-anchor listing-title">
+<a href="../../posts/reliable-automation-pipelines-persistent-game-worlds/index.html" class="no-external">Designing Reliable Automation Pipelines for Persistent Game Worlds</a>
+</h3>
+<div class="listing-subtitle">
+<a href="../../posts/reliable-automation-pipelines-persistent-game-worlds/index.html" class="no-external">A practical exploration of reasoning, architecture and stable backup mechanisms</a>
+</div>
+<div class="delink listing-description"><a href="../../posts/reliable-automation-pipelines-persistent-game-worlds/index.html" class="no-external">
+<p>This post presents the reasoning process and technical decisions that led to the creation of a reliable backup and automation workflow for persistent game servers, including a real use case related to maintaining stable Minecraft sessions at home.</p>
+</a></div>
+</div>
+<div class="metadata">
+<a href="../../posts/reliable-automation-pipelines-persistent-game-worlds/index.html" class="no-external">
+<div class="listing-date">
+December 4, 2025
+</div>
+</a>
+</div>
+</div>
+</div>
+<div class="listing-no-matching d-none">No matching items</div>
+</div>
+<hr>
+<div class="column-body">
+<script src="https://giscus.app/client.js" data-repo="danieltorquatof/blog" data-repo-id="R_kgDONv_J5g" data-category="Projects" data-category-id="DIC_kwDONv_J5s4Cmket" data-mapping="specific" data-term="1377d434-1a15-4b62-aff5-c48ab1f38f16" data-strict="1" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="preferred_color_scheme" data-lang="en" data-loading="lazy" crossorigin="anonymous" async="">
+</script>
+</div>
+
+
+
+</section>
+
+ ]]></description>
+  <category>DevOps</category>
+  <category>Docker</category>
+  <category>Automation</category>
+  <category>Backup</category>
+  <category>Minecraft</category>
+  <guid>https://blog.danieltorquatof.spikeystudio.com/projects/minecraft-backup/</guid>
   <pubDate>Thu, 04 Dec 2025 00:00:00 GMT</pubDate>
 </item>
 <item>

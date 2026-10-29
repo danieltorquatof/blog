@@ -1,7 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://blog.danieltorquatof.spikeystudio.com/posts/how-to-ruin-your-company-and-team-with-ai/</loc>
+    <loc>https://blog.danieltorquatof.spikeystudio.com/projects/minecraft-backup/</loc>
+    <lastmod>2026-10-29T20:01:22.000Z</lastmod>
+  </url>
+  <url>
+    <loc>https://blog.danieltorquatof.spikeystudio.com/posts/reliable-automation-pipelines-persistent-game-worlds/</loc>
+    <lastmod>2026-10-29T20:01:22.000Z</lastmod>
+  </url>
+  <url>
+    <loc>https://blog.danieltorquatof.spikeystudio.com/posts/</loc>
+    <lastmod>2025-02-10T23:48:00.000Z</lastmod>
+  </url>
+  <url>
+    <loc>https://blog.danieltorquatof.spikeystudio.com/achievements/</loc>
+    <lastmod>2025-02-14T00:18:04.000Z</lastmod>
+  </url>
+  <url>
+    <loc>https://blog.danieltorquatof.spikeystudio.com/aboutMe/resume.html</loc>
     <lastmod>2026-10-29T19:22:31.000Z</lastmod>
   </url>
   <url>
@@ -9,24 +25,12 @@
     <lastmod>2026-10-29T19:22:31.000Z</lastmod>
   </url>
   <url>
-    <loc>https://blog.danieltorquatof.spikeystudio.com/aboutMe/resume.html</loc>
-    <lastmod>2026-10-29T19:22:31.000Z</lastmod>
-  </url>
-  <url>
-    <loc>https://blog.danieltorquatof.spikeystudio.com/achievements/</loc>
-    <lastmod>2025-02-14T00:18:04.000Z</lastmod>
-  </url>
-  <url>
-    <loc>https://blog.danieltorquatof.spikeystudio.com/posts/</loc>
-    <lastmod>2025-02-10T23:48:00.000Z</lastmod>
-  </url>
-  <url>
-    <loc>https://blog.danieltorquatof.spikeystudio.com/posts/reliable-automation-pipelines-persistent-game-worlds/</loc>
+    <loc>https://blog.danieltorquatof.spikeystudio.com/posts/how-to-ruin-your-company-and-team-with-ai/</loc>
     <lastmod>2026-10-29T19:22:31.000Z</lastmod>
   </url>
   <url>
     <loc>https://blog.danieltorquatof.spikeystudio.com/projects/</loc>
-    <lastmod>2025-02-14T00:18:04.000Z</lastmod>
+    <lastmod>2026-10-29T20:01:22.000Z</lastmod>
   </url>
   <url>
     <loc>https://blog.danieltorquatof.spikeystudio.com/articles/</loc>

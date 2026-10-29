@@ -86,9 +86,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
 <script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../../site_libs/bootstrap/bootstrap-b7e763ba4c17558ccf1e9b5f7d763381.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="../../site_libs/bootstrap/bootstrap-dark-0c0e2451ea70650c8d9fc9fcf6f939e3.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
-<link href="../../site_libs/bootstrap/bootstrap-b7e763ba4c17558ccf1e9b5f7d763381.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-b75f02904462c324fa3674440eeb4c74.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-dark-e84c129927a5a084e6674a028813801d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../../site_libs/bootstrap/bootstrap-b75f02904462c324fa3674440eeb4c74.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -187,7 +187,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       "description": "This post presents the reasoning process and technical decisions that led to the creation of a reliable backup and automation workflow for persistent game servers, including a real use case related to maintaining stable Minecraft sessions at home.",
       "image": "https://blog.danieltorquatof.spikeystudio.com/posts/reliable-automation-pipelines-persistent-game-worlds/og-image.png",
       "datePublished": "2025-12-04",
-      "dateModified": "2025-12-04",
+      "dateModified": "2026-10-22",
       "keywords": [
         "DevOps",
         "Automation",
@@ -497,6 +497,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     </div>
   </div>
   
+    <div>
+    <div class="quarto-title-meta-heading">Modified</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date-modified">October 22, 2026</p>
+    </div>
+  </div>
     
   </div>
   
@@ -505,92 +511,126 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Updated on October 22, 2026
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The reference implementation received a <a href="https://github.com/danieltorquatof/minecraft-backup/pull/1">reliability and security release</a> and this post now reflects it. Most importantly, <strong>the GitHub token is no longer embedded in the remote URL</strong> (the original version wrote it to the repository config and to the logs). The update also fixes backup commits that could fail silently, stops the server cleanly before the final backup, pauses saving while files are staged, adds CI and moves to the Java 25 image. See the <a href="#revision-history">revision history</a>.</p>
+</div>
+</div>
 <hr>
 <section id="reference-implementation" class="level2">
 <h2 class="anchored" data-anchor-id="reference-implementation">Reference Implementation</h2>
 <p>The complete implementation described throughout this post is publicly available in the following repository:</p>
-<p><strong>GitHub Repository</strong><br>
-<a href="https://github.com/danieltorquatof/minecraft-backup">danieltorquatof/minecraft-backup</a></p>
-<p>The project contains the full set of scripts, Docker definitions and utility functions that support the automation flow presented above. Reviewing the code directly in the repository can help contextualise the behaviour of each component and illustrate how the pieces integrate in practice.</p>
+<p><strong>GitHub Repository</strong> <a href="https://github.com/danieltorquatof/minecraft-backup">danieltorquatof/minecraft-backup</a> · <a href="../../projects/minecraft-backup/index.html">project page</a> (status and updates)</p>
+<p>The project contains the full set of scripts, Docker definitions and utility functions that support the automation flow presented below. The excerpts in this post come from commit <a href="https://github.com/danieltorquatof/minecraft-backup/tree/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe"><code>e0cc658</code></a>; reviewing the code directly in the repository can help contextualise the behaviour of each component and illustrate how the pieces integrate in practice.</p>
 <hr>
 </section>
 <section id="key-code-excerpts" class="level2">
 <h2 class="anchored" data-anchor-id="key-code-excerpts">Key Code Excerpts</h2>
-<p>Although the full implementation is available in the repository, a few excerpts help illustrate the mechanics behind the automation layer. The example below shows how the autosave routine delegates world persistence to a dedicated function and then commits the updated data to Git.</p>
+<p>Although the full implementation is available in the repository, a few excerpts help illustrate the mechanics behind the automation layer. The example below shows how the autosave routine guards against overlapping runs and then delegates world persistence to a dedicated function that commits the updated data to Git.</p>
 <section id="scriptsautosave.sh" class="level3">
 <h3 class="anchored" data-anchor-id="scriptsautosave.sh">scripts/autosave.sh</h3>
+<p><a href="https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/scripts/autosave.sh">View on GitHub</a></p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/bin/bash</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">set</span> <span class="at">-e</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> /usr/local/bin/log.sh</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> /usr/local/bin/saveWorld.sh</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Periodic backup, run every PERIODIC_INTERVAL minutes while the server is up.</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Can also be run by hand: docker compose exec minecraft /opt/minecraft-backup/scripts/autosave.sh</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> /opt/minecraft-backup/utils/saveWorld.sh</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="va">LOG_DIR</span><span class="op">=</span><span class="st">"/var/log/mc-scripts"</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="va">LOG_FILE</span><span class="op">=</span><span class="st">"</span><span class="va">$LOG_DIR</span><span class="st">/autosave.log"</span></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="va">REPO_DIR</span><span class="op">=</span><span class="st">"/data/</span><span class="va">$REPO_NAME</span><span class="st">"</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="va">REPO_URL</span><span class="op">=</span><span class="st">"https://</span><span class="va">$GITHUB_TOKEN</span><span class="st">@github.com/</span><span class="va">$GITHUB_USER</span><span class="st">/</span><span class="va">$REPO_NAME</span><span class="st">.git"</span></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ex">log</span> <span class="st">"AUTOSAVE"</span> <span class="st">"Starting execution..."</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="va">LOG_FILE</span><span class="op">=</span><span class="st">"</span><span class="va">$LOG_DIR</span><span class="st">/autosave.log"</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="bu">exec</span> <span class="dv">9</span><span class="op">&gt;</span><span class="st">"</span><span class="va">$LOCK_FILE</span><span class="st">"</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="ot">! </span><span class="ex">flock</span> <span class="at">-n</span> 9<span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>  <span class="ex">log</span> <span class="st">"AUTOSAVE"</span> <span class="st">"Another backup is still running. Skipping."</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>  <span class="bu">exit</span> 0</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
 <span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> config <span class="at">--global</span> <span class="at">--add</span> safe.directory <span class="st">"</span><span class="va">$REPO_DIR</span><span class="st">"</span></span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> config <span class="at">--global</span> init.defaultBranch main</span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="ot">!</span> <span class="ot">-d</span> <span class="st">"</span><span class="va">$REPO_DIR</span><span class="st">/.git"</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    <span class="ex">log</span> <span class="st">"AUTOSAVE"</span> <span class="st">"Repository not created. Initializing new repo at </span><span class="va">$REPO_DIR</span><span class="st">..."</span></span>
-<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">git</span> <span class="at">-C</span> <span class="st">"</span><span class="va">$REPO_DIR</span><span class="st">"</span> init</span>
-<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    <span class="ex">log</span> <span class="st">"AUTOSAVE"</span> <span class="st">"Adding remote origin: </span><span class="va">$REPO_URL</span><span class="st">"</span></span>
-<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>    <span class="fu">git</span> <span class="at">-C</span> <span class="st">"</span><span class="va">$REPO_DIR</span><span class="st">"</span> remote add origin <span class="st">"</span><span class="va">$REPO_URL</span><span class="st">"</span></span>
-<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
-<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="ex">saveWorld</span> <span class="st">"AUTOSAVE"</span></span>
-<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a><span class="ex">log</span> <span class="st">"AUTOSAVE"</span> <span class="st">"Execution completed."</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="ot">! </span><span class="ex">server_online</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>  <span class="ex">log</span> <span class="st">"AUTOSAVE"</span> <span class="st">"Server is not accepting RCON commands yet. Skipping."</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>  <span class="bu">exit</span> 0</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="ex">log</span> <span class="st">"AUTOSAVE"</span> <span class="st">"Starting execution..."</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="ot">! </span><span class="ex">saveWorld</span> <span class="st">"AUTOSAVE"</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>  <span class="ex">log</span> <span class="st">"AUTOSAVE"</span> <span class="st">"Execution failed."</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>  <span class="bu">exit</span> 1</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a><span class="ex">log</span> <span class="st">"AUTOSAVE"</span> <span class="st">"Execution completed."</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="utilssaveworld.sh" class="level3">
 <h3 class="anchored" data-anchor-id="utilssaveworld.sh">utils/saveWorld.sh</h3>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/bin/bash</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> /usr/local/bin/log.sh</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="va">RCON_HOST</span><span class="op">=</span><span class="st">"localhost"</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="va">RCON_PORT</span><span class="op">=</span><span class="va">${RCON_PORT</span><span class="op">:-</span>25575<span class="va">}</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="va">RCON_PASS</span><span class="op">=</span><span class="va">$RCON_PASSWORD</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="fu">saveWorld()</span> <span class="kw">{</span></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">PREFIX</span><span class="op">=</span><span class="st">"</span><span class="va">$1</span><span class="st">"</span></span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">UTC_NOW</span><span class="op">=</span><span class="st">"</span><span class="va">$(</span><span class="fu">date</span> <span class="at">-u</span> +<span class="st">"%Y-%m-%dT%H:%M:%SZ"</span><span class="va">)</span><span class="st">"</span></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">COMMIT_MSG</span><span class="op">=</span><span class="st">"</span><span class="va">$UTC_NOW</span><span class="st"> - </span><span class="va">$PREFIX</span><span class="st">"</span></span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  <span class="ex">rcon-cli</span> <span class="st">'tellraw @a {"text":"📂 Backup started!","color":"gold"}'</span></span>
-<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sleep</span> 2</span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  <span class="ex">rcon-cli</span> <span class="st">"save-all"</span></span>
+<p><a href="https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/utils/saveWorld.sh">View on GitHub</a></p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Flushes the world to disk (when the server is running), commits every change and pushes it.</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">saveWorld()</span> <span class="kw">{</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">prefix</span><span class="op">=</span><span class="st">"</span><span class="va">$1</span><span class="st">"</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">online</span><span class="op">=</span>false</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="co"># ... ensure_repo prepares the repository (omitted)</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="ex">server_online</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="va">online</span><span class="op">=</span>true</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="ex">rcon</span> <span class="st">'tellraw @a {"text":"📂 Backup started!","color":"gold"}'</span> <span class="op">&gt;</span>/dev/null</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Pause automatic saving so region files are not rewritten while they are staged.</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="ex">rcon</span> save-off <span class="op">&gt;</span>/dev/null</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    <span class="ex">rcon</span> save-all flush <span class="op">&gt;</span>/dev/null</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">add_status</span><span class="op">=</span>0</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  <span class="ex">repo_git</span> add <span class="at">-A</span> <span class="kw">||</span> <span class="va">add_status</span><span class="op">=</span><span class="va">$?</span></span>
 <span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sleep</span> 2</span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>  <span class="ex">log</span> <span class="va">$PREFIX</span> <span class="st">"World successfully saved."</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="bu">[</span> <span class="st">"</span><span class="va">$online</span><span class="st">"</span> <span class="ot">=</span> true <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    <span class="ex">rcon</span> save-on <span class="op">&gt;</span>/dev/null <span class="kw">||</span> <span class="ex">log</span> <span class="st">"</span><span class="va">$prefix</span><span class="st">"</span> <span class="st">"WARNING: could not re-enable automatic saving."</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
 <span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">git</span> <span class="at">-C</span> <span class="st">"</span><span class="va">$REPO_DIR</span><span class="st">"</span> add .</span>
-<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">git</span> <span class="at">-C</span> <span class="st">"</span><span class="va">$REPO_DIR</span><span class="st">"</span> commit <span class="at">-m</span> <span class="st">"</span><span class="va">$COMMIT_MSG</span><span class="st">"</span> <span class="kw">||</span> <span class="ex">log</span> <span class="st">"AUTOSAVE"</span> <span class="st">"Nothing to commit"</span></span>
-<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="ot">! </span><span class="fu">git</span> <span class="at">-C</span> <span class="st">"</span><span class="va">$REPO_DIR</span><span class="st">"</span> push<span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>      <span class="ex">log</span> <span class="va">$PREFIX</span> <span class="st">"Upstream not set. Setting upstream and retrying push..."</span></span>
-<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>      <span class="fu">git</span> <span class="at">-C</span> <span class="st">"</span><span class="va">$REPO_DIR</span><span class="st">"</span> push <span class="at">-u</span> origin main</span>
-<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
-<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>  <span class="ex">log</span> <span class="va">$PREFIX</span> <span class="st">"Autosave successfully deployed."</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="bu">[</span> <span class="st">"</span><span class="va">$add_status</span><span class="st">"</span> <span class="ot">-ne</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    <span class="ex">log</span> <span class="st">"</span><span class="va">$prefix</span><span class="st">"</span> <span class="st">"ERROR: git add failed."</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">1</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="ex">repo_git</span> diff <span class="at">--cached</span> <span class="at">--quiet</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>    <span class="ex">log</span> <span class="st">"</span><span class="va">$prefix</span><span class="st">"</span> <span class="st">"No changes since the last backup."</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>  <span class="cf">else</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">commit_msg</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>    <span class="va">commit_msg</span><span class="op">=</span><span class="st">"</span><span class="va">$(</span><span class="fu">date</span> <span class="at">-u</span> +<span class="st">"%Y-%m-%dT%H:%M:%SZ"</span><span class="va">)</span><span class="st"> - </span><span class="va">$prefix</span><span class="st">"</span></span>
 <span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>  <span class="ex">rcon-cli</span> <span class="st">'tellraw @a {"text":"📁 Backup completed!","color":"green"}'</span></span>
-<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>These sections illustrate the predictable structure that supports periodic and manual world preservation. The underlying model is intentionally minimalistic so the logic remains transparent and easy to debug.</p>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>    <span class="ex">repo_git</span> commit <span class="at">-q</span> <span class="at">-m</span> <span class="st">"</span><span class="va">$commit_msg</span><span class="st">"</span> <span class="kw">||</span> <span class="cf">return</span> <span class="dv">1</span></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Also sends commits left behind by previous failed pushes.</span></span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="ot">! </span><span class="ex">repo_git</span> push <span class="at">-q</span> <span class="at">-u</span> origin HEAD<span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>    <span class="ex">log</span> <span class="st">"</span><span class="va">$prefix</span><span class="st">"</span> <span class="st">"ERROR: git push failed."</span></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ... warns the players in game (omitted)</span></span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">1</span></span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a>  <span class="ex">log</span> <span class="st">"</span><span class="va">$prefix</span><span class="st">"</span> <span class="st">"Backup successfully pushed."</span></span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="utilscommon.sh-credentials" class="level3">
+<h3 class="anchored" data-anchor-id="utilscommon.sh-credentials">utils/common.sh: credentials</h3>
+<p><a href="https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/utils/common.sh">View on GitHub</a></p>
+<p>The token is handed to Git through an inline credential helper defined in environment variables, so it never reaches the remote URL, a config file or the logs:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GIT_TERMINAL_PROMPT</span><span class="op">=</span>0</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GIT_CONFIG_COUNT</span><span class="op">=</span>3</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GIT_CONFIG_KEY_0</span><span class="op">=</span><span class="st">"safe.directory"</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GIT_CONFIG_VALUE_0</span><span class="op">=</span><span class="st">"</span><span class="va">$REPO_DIR</span><span class="st">"</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GIT_CONFIG_KEY_1</span><span class="op">=</span><span class="st">"init.defaultBranch"</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GIT_CONFIG_VALUE_1</span><span class="op">=</span><span class="st">"</span><span class="va">$GIT_BRANCH</span><span class="st">"</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GIT_CONFIG_KEY_2</span><span class="op">=</span><span class="st">"credential.helper"</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GIT_CONFIG_VALUE_2</span><span class="op">=</span><span class="st">'!f() { test "$1" = get &amp;&amp; test -n "$GITHUB_TOKEN" &amp;&amp; echo "username=${GITHUB_USER:-x-access-token}" &amp;&amp; echo "password=$GITHUB_TOKEN"; }; f'</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>These sections illustrate the predictable structure that supports periodic and manual world preservation. The underlying model is intentionally minimalistic so the logic remains transparent and easy to debug, while every step reports failures instead of assuming success.</p>
 <hr>
 <p>Persistent digital environments demand predictable behaviour. Whether managing corporate infrastructure or personal projects, stability depends on systems that continue to operate even when attention shifts elsewhere. Over time I realised that reliable automation is not only relevant in professional settings. It can also solve surprisingly ordinary problems.</p>
 <p>A practical example emerged in my own home. My partner and I often play Minecraft together and our sessions sometimes last several hours. Anyone who has hosted a local or containerised server knows that crashes or unexpected shutdowns can corrupt the world or erase progress. After losing entire builds on more than one occasion I started thinking seriously about how to design a stable and automatic backup mechanism that would remove the risk altogether.</p>
@@ -608,64 +648,70 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div>
 <pre class="mermaid mermaid-js">flowchart TB;
   A[Container starts]
-  B[Initialisation script]
-  C{Repository exists?}
-  D[Clone or update repository]
-  E[Prepare empty repository]
-  F[Start Minecraft server]
-  G[Periodic loop starts]
-  H[Autosave script executes every N minutes]
-  I[saveWorld.sh]
-  J[Git add and commit]
-  K[Push to GitHub]
-  L[Container receives stop signal]
-  M[Shutdown script]
+  B[Validate configuration]
+  C[Initialisation script]
+  D{Remote has backups?}
+  E[Clone or fast-forward repository]
+  F[Prepare empty repository]
+  G[Start Minecraft server]
+  H[Periodic loop starts]
+  I[Autosave script executes every N minutes]
+  J[saveWorld.sh]
+  K[Pause saving and flush world]
+  L[Git add, resume saving, commit if changed]
+  M[Push to GitHub]
+  N[Container receives stop signal]
+  O[Stop server gracefully]
+  P[Shutdown script]
 
   A --&gt; B
   B --&gt; C
+  C --&gt; D
 
-  C -- Yes --&gt; D
-  C -- No --&gt; E
+  D -- Yes --&gt; E
+  D -- No --&gt; F
 
-  D --&gt; F
-  E --&gt; F
-
+  E --&gt; G
   F --&gt; G
-  G --&gt; H
 
+  G --&gt; H
   H --&gt; I
+
   I --&gt; J
   J --&gt; K
-
-  F --&gt; L
+  K --&gt; L
   L --&gt; M
-  M --&gt; I
+
+  G --&gt; N
+  N --&gt; O
+  O --&gt; P
+  P --&gt; J
 </pre>
 </div>
 <p></p></figure><p></p>
 </div>
 </div>
 </div>
-<p>This diagram reflects the core concept. Every event leads to a deterministic and observable action. World data is always saved, always committed and always pushed.</p>
+<p>This diagram reflects the core concept. Every event leads to a deterministic and observable action. World data is always saved, always committed and always pushed, and any step that fails is logged and reported instead of silently ignored.</p>
 <hr>
 </section>
 <section id="understanding-the-file-structure" class="level2">
 <h2 class="anchored" data-anchor-id="understanding-the-file-structure">Understanding the File Structure</h2>
 <p>The project uses a modular structure that separates concerns and creates predictable behaviours. Each file contributes uniquely to the automation pipeline.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">.</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> docker-compose.yml</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> Dockerfile</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> entrypoint.sh</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> .env.example</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> .gitignore</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> README.md</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> scripts</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="ex">│</span>   ├── autosave.sh</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="ex">│</span>   ├── init.sh</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="ex">│</span>   ├── shutdown.sh</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> utils</span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="ex">│</span>   ├── log.sh</span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="ex">│</span>   ├── saveWorld.sh</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="bu">.</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> .github/workflows/ci.yml   <span class="co"># ShellCheck, Hadolint, compose validation and image build</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> docker-compose.yml</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> Dockerfile</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> entrypoint.sh              <span class="co"># Startup → periodic loop → graceful shutdown</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> .env.example</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="ex">├──</span> scripts</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="ex">│</span>   ├── autosave.sh            <span class="co"># Periodic backup (can also be run by hand)</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="ex">│</span>   ├── init.sh                <span class="co"># Restores/clones the world before the server starts</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="ex">│</span>   └── shutdown.sh            <span class="co"># Final backup after the server stops</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="ex">└──</span> utils</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="ex">├──</span> common.sh              <span class="co"># Shared configuration, git/RCON helpers</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="ex">├──</span> log.sh                 <span class="co"># Logging to stdout and ./logs</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    <span class="ex">└──</span> saveWorld.sh           <span class="co"># Flush → commit → push</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Each one will be explained individually so the full picture becomes clear.</p>
 <hr>
 </section>
@@ -675,17 +721,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="docker-compose.yml">docker-compose.yml</h3>
 <p>Defines how the server is launched. It handles:</p>
 <ul>
-<li>Port exposure for gameplay and RCON access;</li>
+<li>Port exposure for gameplay only (<code>MC_HOST_PORT</code>, <code>25565</code> by default). RCON stays inside the container, since backups are the only thing that uses it;</li>
 <li>Environment variable loading;</li>
 <li>Persistence of the Minecraft world and logs;</li>
-<li>Building the custom image from the local Dockerfile.</li>
+<li>Building the custom image from the local Dockerfile;</li>
+<li>A three minute <code>stop_grace_period</code>, so Docker does not kill the container while the final backup is being pushed.</li>
 </ul>
 <p>Its purpose is to maintain stability across restarts and ensure that all automation scripts remain present inside the container.</p>
 <hr>
 </section>
 <section id="dockerfile" class="level3">
 <h3 class="anchored" data-anchor-id="dockerfile">Dockerfile</h3>
-<p>The Dockerfile extends the “official” image <code>itzg/minecraft-server:java21</code> then introduces all custom scripts. This combination provides the reliability of a well maintained base image while enabling custom behaviour controlled entirely by our own entrypoint.</p>
+<p>The Dockerfile extends the “official” image <code>itzg/minecraft-server:java25</code> (configurable through <code>MC_IMAGE_TAG</code> for older Minecraft versions) then installs all custom scripts under <code>/opt/minecraft-backup</code>. This combination provides the reliability of a well maintained base image while enabling custom behaviour controlled entirely by our own entrypoint.</p>
 <div class="cell" data-fig-width="100%" data-layout-align="center">
 <div class="cell-output-display">
 <div>
@@ -717,11 +764,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>This script coordinates the lifecycle of the server and backup system.</p>
 <p>It performs:</p>
 <ol type="1">
-<li>Initialisation;</li>
-<li>Startup synchronisation;</li>
+<li>Configuration validation (repository name, token, interval);</li>
+<li>Initialisation and startup synchronisation;</li>
 <li>Launch of the periodic autosave loop;</li>
 <li>Delegation to the official Minecraft server start script;</li>
-<li>Graceful shutdown and final backup.</li>
+<li>Graceful shutdown: the server is stopped first, then the final backup runs.</li>
 </ol>
 <p>A second diagram helps illustrate this behaviour.</p>
 <div class="cell" data-fig-width="100%" data-layout-align="center">
@@ -731,20 +778,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div>
 <pre class="mermaid mermaid-js">flowchart TB;
   A[entrypoint.sh starts]
+  V{Configuration valid?}
+  X[Exit with a clear error]
   B[Run init.sh]
   C[Configure and sync repository]
   D[Start autosave loop in background]
   E[Begin Minecraft server]
   F{Stop signal received?}
+  S[Stop server and wait for it to save]
   G[Run shutdown.sh]
-  H[Final save and push]
+  H[Final commit and push]
 
-  A --&gt; B
+  A --&gt; V
+  V -- No --&gt; X
+  V -- Yes --&gt; B
   B --&gt; C
   C --&gt; D
   D --&gt; E
   E --&gt; F
-  F -- Yes --&gt; G
+  F -- Yes --&gt; S
+  S --&gt; G
   G --&gt; H
   F -- No --&gt; E
 </pre>
@@ -753,24 +806,29 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </div>
-<p>This flow ensures that no world data is lost, regardless of how the container stops.</p>
+<p>This flow ensures that no world data is lost, regardless of how the container stops. The same final backup also runs when the server stops on its own, for example after <code>/stop</code> in game.</p>
 <hr>
 </section>
 </section>
 <section id="utility-layers" class="level2">
 <h2 class="anchored" data-anchor-id="utility-layers">Utility Layers</h2>
+<section id="utilscommon.sh" class="level3">
+<h3 class="anchored" data-anchor-id="utilscommon.sh">utils/common.sh</h3>
+<p>Shared configuration used by every script: the Git identity (commits fail without a committer), the credential helper shown above, RCON helpers and a function that runs Git as the same user as the server, so no world file ends up owned by root.</p>
+<hr>
+</section>
 <section id="utilslog.sh" class="level3">
 <h3 class="anchored" data-anchor-id="utilslog.sh">utils/log.sh</h3>
-<p>A lightweight logger that standardises how each script communicates events. Every log entry includes a timestamp and prefix. This improves verification and troubleshooting. Logs are written to persistent storage so they survive container recreation.</p>
+<p>A lightweight logger that standardises how each script communicates events. Every log entry includes a timestamp and prefix and goes both to <code>docker compose logs</code> and to persistent storage, so it survives container recreation. This improves verification and troubleshooting.</p>
 <hr>
 </section>
 <section id="utilssaveworld.sh-1" class="level3">
 <h3 class="anchored" data-anchor-id="utilssaveworld.sh-1">utils/saveWorld.sh</h3>
 <p>The most responsibilities in the automation pipeline concentrate here. It performs:</p>
 <ul>
-<li>In game world save via RCON</li>
-<li>Git staging and committing</li>
-<li>Push synchronisation with GitHub</li>
+<li>In game world flush via RCON, with automatic saving paused while files are staged</li>
+<li>Git staging and committing (only when something changed)</li>
+<li>Push synchronisation with GitHub, including commits left behind by earlier failed pushes</li>
 <li>Messaging for both users and logs</li>
 </ul>
 <p>It represents the core reliability mechanism. If this script functions correctly, every world state becomes recoverable.</p>
@@ -781,17 +839,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="lifecycle-scripts">Lifecycle Scripts</h2>
 <section id="scriptsinit.sh" class="level3">
 <h3 class="anchored" data-anchor-id="scriptsinit.sh">scripts/init.sh</h3>
-<p>Executed only during startup. It validates the remote repository, checks whether it exists and whether it is empty. It clones or prepares the repository so the world directory becomes fully managed by Git. This step prevents drift between the running server and the stored history.</p>
+<p>Executed only during startup. It validates the remote repository, checks whether it exists and whether it is empty. It clones the repository, fast-forwards an existing clone or prepares a new one so the world directory becomes fully managed by Git. A local world without history is moved aside instead of being overwritten. This step prevents drift between the running server and the stored history.</p>
 <hr>
 </section>
 <section id="scriptsautosave.sh-1" class="level3">
 <h3 class="anchored" data-anchor-id="scriptsautosave.sh-1">scripts/autosave.sh</h3>
-<p>Runs periodically based on the interval defined in the environment variables. It configures Git, initialises a new repository if needed and calls <code>saveWorld.sh</code>. These periodic commits create a complete backup timeline.</p>
+<p>Runs periodically based on the interval defined in the environment variables. It skips the run when another backup is still in progress or the server is not ready yet, and otherwise calls <code>saveWorld.sh</code>. These periodic commits create a complete backup timeline.</p>
 <hr>
 </section>
 <section id="scriptsshutdown.sh" class="level3">
 <h3 class="anchored" data-anchor-id="scriptsshutdown.sh">scripts/shutdown.sh</h3>
-<p>Triggered on termination of the container. It immediately calls <code>saveWorld.sh</code> so the final server state is stored safely. This prevents data corruption and makes the server restart friendly regardless of how the container was stopped.</p>
+<p>Triggered after the server has stopped. It waits for any backup still in progress and calls <code>saveWorld.sh</code> so the final server state is stored safely. Because the server has already flushed the world to disk, this prevents data corruption and makes the server restart friendly regardless of how the container was stopped.</p>
 <hr>
 </section>
 </section>
@@ -801,13 +859,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="env.example">.env.example</h3>
 <p>Guides the user in defining:</p>
 <ul>
-<li>GitHub repository credentials</li>
-<li>Minecraft server settings</li>
-<li>RCON access</li>
-<li>Backup intervals</li>
+<li>GitHub repository credentials (a fine-grained token limited to the backup repository is enough)</li>
+<li>Minecraft server settings and the base image tag</li>
+<li>Backup intervals and an optional Git remote other than GitHub</li>
 <li>Metadata for commits</li>
 </ul>
-<p>This separation of configuration strengthens clarity and reduces accidental misconfiguration.</p>
+<p>This separation of configuration strengthens clarity and reduces accidental misconfiguration, and the entrypoint refuses to start with an invalid one.</p>
 <hr>
 </section>
 </section>
@@ -815,7 +872,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h1>Why This Matters</h1>
 <p>Although the technical implementation is interesting, the motivation emerged from a real problem. Playing Minecraft with my partner is one of our favourite activities and losing progress due to corruption or abrupt shutdowns was frustrating. Manual backups were easy to forget and relying on memory alone was not sustainable.</p>
 <p>Creating an infrastructure that handles backups automatically removed the cognitive load entirely. It also ensured that every session became safe. The system evolved from a personal inconvenience into an elegant example of how automation thinking can improve both professional and personal digital environments.</p>
-<p>This project demonstrates that reliable systems do not appear spontaneously. They are built through reasoning, testing and iteration. Whether used for game worlds, business processes or experimental environments, the principles remain consistent: predictable automation, clear observability and robust fallback mechanisms.</p>
+<p>This project demonstrates that reliable systems do not appear spontaneously. They are built through reasoning, testing and iteration. The first version already worked for everyday use, yet running it for months revealed failures that only appear over time: commits that failed without a committer identity, a token that leaked into the logs, a final backup racing against the server’s own shutdown. Whether used for game worlds, business processes or experimental environments, the principles remain consistent: predictable automation, clear observability and robust fallback mechanisms.</p>
 <hr>
 </section>
 <section id="final-considerations" class="level1 page-columns page-full">
@@ -823,12 +880,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Constructing automation flows like this establishes a foundation for trust in any persistent system. Once the structure works without supervision, users are free to focus on the experience rather than maintenance. In my case it allowed long sessions of building and exploration with my partner to continue without disruption.</p>
 <p>I hope this explanation clarifies not only what the system does, but also how it was structured and why the reasoning behind it led to a reliable design.</p>
 <hr>
+<section id="revision-history" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="revision-history">Revision history</h2>
+<ul>
+<li><strong>October 22, 2026</strong>: Updated for the reliability and security release of the reference implementation (<a href="https://github.com/danieltorquatof/minecraft-backup/pull/1">PR #1</a>): new code excerpts, credential handling, graceful shutdown, consistent snapshots, Java 25 image and CI.</li>
+<li><strong>December 4, 2025</strong>: First published.</li>
+</ul>
+<hr>
 <div class="column-body">
 <script src="https://giscus.app/client.js" data-repo="danieltorquatof/blog" data-repo-id="R_kgDONv_J5g" data-category="Posts" data-mapping="number" data-term="40" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="preferred_color_scheme" data-lang="en" data-loading="lazy" crossorigin="anonymous" async="">
 </script>
 </div>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
