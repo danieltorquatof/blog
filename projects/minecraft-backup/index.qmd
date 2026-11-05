@@ -1,10 +1,10 @@
 ---
 title: "Minecraft Backup"
-subtitle: "Automated, Git-versioned backups for Minecraft Java servers running in Docker"
-description: "A Docker wrapper around itzg/minecraft-server that restores the world on startup, backs it up to GitHub on a schedule and takes a final backup on shutdown."
+subtitle: "Automated, Git-versioned backups for Minecraft servers in Docker, on the Java server or Horizon (Rust)"
+description: "Docker images for the official Java server and Horizon, the Rust rewrite of Minecraft, that restore the world on startup and back it up to GitHub automatically."
 
 date: 2025-12-04
-date-modified: 2026-10-22
+date-modified: 2026-11-05
 
 # Permanent short link: /projects/<uuid>/ redirects here (utils/seo_postrender.py)
 uuid: 1377d434-1a15-4b62-aff5-c48ab1f38f16
@@ -23,6 +23,7 @@ categories:
   - Automation
   - Backup
   - Minecraft
+  - Horizon
 
 listing:
   id: write-ups
@@ -42,14 +43,15 @@ draft: false
 
 ## Overview
 
-Minecraft Backup wraps the [`itzg/minecraft-server`](https://docker-minecraft-server.readthedocs.io/en/latest/) image with a custom entrypoint that treats the world folder as a Git repository. The world is restored from GitHub when the container starts, committed and pushed at a fixed interval while people play, and backed up one last time after the server stops cleanly, so a world can always be recovered, moved to another machine or rolled back to an earlier commit.
+Minecraft Backup wraps a Minecraft server with a custom entrypoint that treats the world folder as a Git repository. It ships two images: one built on the official [`itzg/minecraft-server`](https://docker-minecraft-server.readthedocs.io/en/latest/) Java image, and one running [Horizon](https://github.com/horizon-rust/horizon), the community rewrite of Minecraft 26.3 in Rust. The world is restored from GitHub when the container starts, committed and pushed at a fixed interval while people play, and backed up one last time after the server stops cleanly, so a world can always be recovered, moved to another machine or rolled back to an earlier commit.
 
 * **Periodic backups**: a Git commit every `PERIODIC_INTERVAL` minutes, created only when something changed.
 * **Consistent snapshots**: automatic saving is paused (`save-off` / `save-all flush`) while files are staged.
 * **Graceful shutdown**: the server stops first, then the final backup is committed and pushed.
 * **Safe credentials**: the GitHub token stays in memory, never in the remote URL, the repository config or the logs.
 * **Any Git remote**: GitHub by default, or GitLab, Gitea or a bare repository through `GIT_REMOTE_URL`.
-* **Compatible with the official image**: every `itzg/minecraft-server` variable still works.
+* **Java or Horizon (Rust)**: both servers use the vanilla world format, so the same backup repository can move from one to the other.
+* **Compatible with the official image**: every `itzg/minecraft-server` variable still works on the Java image.
 
 ## Quick start
 
@@ -60,12 +62,20 @@ cp .env.example .env   # set GITHUB_USER, GITHUB_TOKEN and REPO_NAME
 docker compose up -d --build
 ```
 
-The [README](https://github.com/danieltorquatof/minecraft-backup#readme) covers the token permissions, every variable and how to restore an older backup.
+For Horizon, prepare the Minecraft 26.3 game files from your own copy of the game with the Horizon launcher, then:
+
+```bash
+cp .env.horizon.example .env   # backup variables + HORIZON_EULA and HORIZON_RESOURCES_DIR
+docker compose -f docker-compose.horizon.yml up -d --build
+```
+
+The [README](https://github.com/danieltorquatof/minecraft-backup#readme) covers the token permissions, every variable, the Horizon setup and how to restore an older backup.
 
 ## Updates
 
 | Date | Update |
 | --- | --- |
+| 2026-11-05 | **Horizon (Rust) support** ([PR #2](https://github.com/danieltorquatof/minecraft-backup/pull/2), [PR #3](https://github.com/danieltorquatof/minecraft-backup/pull/3)): a second image runs a pinned, checksum-verified Horizon release with the same Git backups. Console commands go through Horizon's local control API instead of RCON, the world name and game files are set up on start, and stopping the game from inside (`/stop`) now ends the container with a final backup, as on the Java server. CI builds both images and smoke-tests Horizon. |
 | 2026-10-22 | **Reliability and security release** ([PR #1](https://github.com/danieltorquatof/minecraft-backup/pull/1)): backup commits no longer fail silently, graceful shutdown before the final backup, token removed from remote URLs and logs, consistent snapshots with backup locking, safer handling of empty or diverged remotes, RCON no longer published, Java 25 base image and CI (ShellCheck, Hadolint, compose validation, image build). |
 | 2025-12-04 | **Initial release**: periodic Git backups to GitHub, restore on startup and backup on shutdown. |
 
