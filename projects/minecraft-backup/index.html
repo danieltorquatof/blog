@@ -8,7 +8,7 @@
 
 <meta name="author" content="Daniel Torquato">
 <meta name="dcterms.date" content="2025-12-04">
-<meta name="description" content="A Docker wrapper around itzg/minecraft-server that restores the world on startup, backs it up to GitHub on a schedule and takes a final backup on shutdown.">
+<meta name="description" content="Docker images for the official Java server and Horizon, the Rust rewrite of Minecraft, that restore the world on startup and back it up to GitHub automatically.">
 
 <title>Minecraft Backup – Daniel Torquato</title>
 <style>
@@ -193,13 +193,13 @@ window.Quarto = {
 
 <meta property="og:url" content="https://blog.danieltorquatof.spikeystudio.com/projects/minecraft-backup/">
 <meta property="og:title" content="Minecraft Backup – Daniel Torquato">
-<meta property="og:description" content="A Docker wrapper around itzg/minecraft-server that restores the world on startup, backs it up to GitHub on a schedule and takes a final backup on shutdown.">
+<meta property="og:description" content="Docker images for the official Java server and Horizon, the Rust rewrite of Minecraft, that restore the world on startup and back it up to GitHub automatically.">
 <meta property="og:image" content="https://blog.danieltorquatof.spikeystudio.com/projects/minecraft-backup/og-image.png">
 <meta property="og:site_name" content="Daniel Torquato">
 <meta property="og:locale" content="en_US">
 <meta property="og:image:alt" content="Minecraft Backup – Daniel Torquato">
 <meta name="twitter:title" content="Minecraft Backup – Daniel Torquato">
-<meta name="twitter:description" content="A Docker wrapper around itzg/minecraft-server that restores the world on startup, backs it up to GitHub on a schedule and takes a final backup on shutdown.">
+<meta name="twitter:description" content="Docker images for the official Java server and Horizon, the Rust rewrite of Minecraft, that restore the world on startup and back it up to GitHub automatically.">
 <meta name="twitter:image" content="https://blog.danieltorquatof.spikeystudio.com/projects/minecraft-backup/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image:alt" content="Minecraft Backup – Daniel Torquato">
@@ -240,17 +240,18 @@ window.Quarto = {
       "url": "https://blog.danieltorquatof.spikeystudio.com/projects/minecraft-backup/",
       "mainEntityOfPage": "https://blog.danieltorquatof.spikeystudio.com/projects/minecraft-backup/",
       "headline": "Minecraft Backup",
-      "alternativeHeadline": "Automated, Git-versioned backups for Minecraft Java servers running in Docker",
-      "description": "A Docker wrapper around itzg/minecraft-server that restores the world on startup, backs it up to GitHub on a schedule and takes a final backup on shutdown.",
+      "alternativeHeadline": "Automated, Git-versioned backups for Minecraft servers in Docker, on the Java server or Horizon (Rust)",
+      "description": "Docker images for the official Java server and Horizon, the Rust rewrite of Minecraft, that restore the world on startup and back it up to GitHub automatically.",
       "image": "https://blog.danieltorquatof.spikeystudio.com/projects/minecraft-backup/og-image.png",
       "datePublished": "2025-12-04",
-      "dateModified": "2026-10-22",
+      "dateModified": "2026-11-05",
       "keywords": [
         "DevOps",
         "Docker",
         "Automation",
         "Backup",
-        "Minecraft"
+        "Minecraft",
+        "Horizon"
       ],
       "author": {
         "@id": "https://blog.danieltorquatof.spikeystudio.com/#person"
@@ -529,19 +530,20 @@ window.Quarto = {
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
 <h1 class="title">Minecraft Backup</h1>
-<p class="subtitle lead">Automated, Git-versioned backups for Minecraft Java servers running in Docker</p>
+<p class="subtitle lead">Automated, Git-versioned backups for Minecraft servers in Docker, on the Java server or Horizon (Rust)</p>
   <div class="quarto-categories">
     <div class="quarto-category">DevOps</div>
     <div class="quarto-category">Docker</div>
     <div class="quarto-category">Automation</div>
     <div class="quarto-category">Backup</div>
     <div class="quarto-category">Minecraft</div>
+    <div class="quarto-category">Horizon</div>
   </div>
   </div>
 
 <div>
   <div class="description">
-    A Docker wrapper around itzg/minecraft-server that restores the world on startup, backs it up to GitHub on a schedule and takes a final backup on shutdown.
+    Docker images for the official Java server and Horizon, the Rust rewrite of Minecraft, that restore the world on startup and back it up to GitHub automatically.
   </div>
 </div>
 
@@ -567,7 +569,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Modified</div>
     <div class="quarto-title-meta-contents">
-      <p class="date-modified">October 22, 2026</p>
+      <p class="date-modified">November 5, 2026</p>
     </div>
   </div>
     
@@ -602,14 +604,15 @@ window.Quarto = {
 <hr>
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Minecraft Backup wraps the <a href="https://docker-minecraft-server.readthedocs.io/en/latest/"><code>itzg/minecraft-server</code></a> image with a custom entrypoint that treats the world folder as a Git repository. The world is restored from GitHub when the container starts, committed and pushed at a fixed interval while people play, and backed up one last time after the server stops cleanly, so a world can always be recovered, moved to another machine or rolled back to an earlier commit.</p>
+<p>Minecraft Backup wraps a Minecraft server with a custom entrypoint that treats the world folder as a Git repository. It ships two images: one built on the official <a href="https://docker-minecraft-server.readthedocs.io/en/latest/"><code>itzg/minecraft-server</code></a> Java image, and one running <a href="https://github.com/horizon-rust/horizon">Horizon</a>, the community rewrite of Minecraft 26.3 in Rust. The world is restored from GitHub when the container starts, committed and pushed at a fixed interval while people play, and backed up one last time after the server stops cleanly, so a world can always be recovered, moved to another machine or rolled back to an earlier commit.</p>
 <ul>
 <li><strong>Periodic backups</strong>: a Git commit every <code>PERIODIC_INTERVAL</code> minutes, created only when something changed.</li>
 <li><strong>Consistent snapshots</strong>: automatic saving is paused (<code>save-off</code> / <code>save-all flush</code>) while files are staged.</li>
 <li><strong>Graceful shutdown</strong>: the server stops first, then the final backup is committed and pushed.</li>
 <li><strong>Safe credentials</strong>: the GitHub token stays in memory, never in the remote URL, the repository config or the logs.</li>
 <li><strong>Any Git remote</strong>: GitHub by default, or GitLab, Gitea or a bare repository through <code>GIT_REMOTE_URL</code>.</li>
-<li><strong>Compatible with the official image</strong>: every <code>itzg/minecraft-server</code> variable still works.</li>
+<li><strong>Java or Horizon (Rust)</strong>: both servers use the vanilla world format, so the same backup repository can move from one to the other.</li>
+<li><strong>Compatible with the official image</strong>: every <code>itzg/minecraft-server</code> variable still works on the Java image.</li>
 </ul>
 </section>
 <section id="quick-start" class="level2">
@@ -618,7 +621,10 @@ window.Quarto = {
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> minecraft-backup</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> .env.example .env   <span class="co"># set GITHUB_USER, GITHUB_TOKEN and REPO_NAME</span></span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose up <span class="at">-d</span> <span class="at">--build</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The <a href="https://github.com/danieltorquatof/minecraft-backup#readme">README</a> covers the token permissions, every variable and how to restore an older backup.</p>
+<p>For Horizon, prepare the Minecraft 26.3 game files from your own copy of the game with the Horizon launcher, then:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> .env.horizon.example .env   <span class="co"># backup variables + HORIZON_EULA and HORIZON_RESOURCES_DIR</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose <span class="at">-f</span> docker-compose.horizon.yml up <span class="at">-d</span> <span class="at">--build</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The <a href="https://github.com/danieltorquatof/minecraft-backup#readme">README</a> covers the token permissions, every variable, the Horizon setup and how to restore an older backup.</p>
 </section>
 <section id="updates" class="level2">
 <h2 class="anchored" data-anchor-id="updates">Updates</h2>
@@ -631,10 +637,14 @@ window.Quarto = {
 </thead>
 <tbody>
 <tr class="odd">
+<td>2026-11-05</td>
+<td><strong>Horizon (Rust) support</strong> (<a href="https://github.com/danieltorquatof/minecraft-backup/pull/2">PR #2</a>, <a href="https://github.com/danieltorquatof/minecraft-backup/pull/3">PR #3</a>): a second image runs a pinned, checksum-verified Horizon release with the same Git backups. Console commands go through Horizon’s local control API instead of RCON, the world name and game files are set up on start, and stopping the game from inside (<code>/stop</code>) now ends the container with a final backup, as on the Java server. CI builds both images and smoke-tests Horizon.</td>
+</tr>
+<tr class="even">
 <td>2026-10-22</td>
 <td><strong>Reliability and security release</strong> (<a href="https://github.com/danieltorquatof/minecraft-backup/pull/1">PR #1</a>): backup commits no longer fail silently, graceful shutdown before the final backup, token removed from remote URLs and logs, consistent snapshots with backup locking, safer handling of empty or diverged remotes, RCON no longer published, Java 25 base image and CI (ShellCheck, Hadolint, compose validation, image build).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>2025-12-04</td>
 <td><strong>Initial release</strong>: periodic Git backups to GitHub, restore on startup and backup on shutdown.</td>
 </tr>
@@ -645,7 +655,7 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="write-ups">Write-ups</h2>
 <div id="listing-write-ups" class="quarto-listing quarto-listing-container-default">
 <div class="list quarto-listing-default">
-<div class="quarto-post image-right" data-index="0" data-categories="RGV2T3BzJTJDQXV0b21hdGlvbiUyQ0luZnJhc3RydWN0dXJlJTJDU3lzdGVtcyUyMERlc2lnbiUyQ1JlbGlhYmlsaXR5JTIwRW5naW5lZXJpbmc=" data-listing-date-sort="1764806400000" data-listing-file-modified-sort="1793304082000" data-listing-date-modified-sort="1792627200000" data-listing-reading-time-sort="12" data-listing-word-count-sort="2370">
+<div class="quarto-post image-right" data-index="0" data-categories="RGV2T3BzJTJDQXV0b21hdGlvbiUyQ0luZnJhc3RydWN0dXJlJTJDU3lzdGVtcyUyMERlc2lnbiUyQ1JlbGlhYmlsaXR5JTIwRW5naW5lZXJpbmc=" data-listing-date-sort="1764806400000" data-listing-file-modified-sort="1793852238000" data-listing-date-modified-sort="1793836800000" data-listing-reading-time-sort="16" data-listing-word-count-sort="3155">
 <div class="body">
 <h3 class="no-anchor listing-title">
 <a href="../../posts/reliable-automation-pipelines-persistent-game-worlds/index.html" class="no-external">Designing Reliable Automation Pipelines for Persistent Game Worlds</a>

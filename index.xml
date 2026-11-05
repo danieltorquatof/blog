@@ -34,27 +34,29 @@
 <i class="callout-icon"></i>
 </div>
 <div class="callout-title-container flex-fill">
-<span class="screen-reader-only">Note</span>Updated on October 22, 2026
+<span class="screen-reader-only">Note</span>Updated on November 5, 2026
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>The reference implementation received a <a href="https://github.com/danieltorquatof/minecraft-backup/pull/1">reliability and security release</a> and this post now reflects it. Most importantly, <strong>the GitHub token is no longer embedded in the remote URL</strong> (the original version wrote it to the repository config and to the logs). The update also fixes backup commits that could fail silently, stops the server cleanly before the final backup, pauses saving while files are staged, adds CI and moves to the Java 25 image. See the revision history.</p>
+<p>The reference implementation now also runs <a href="https://github.com/horizon-rust/horizon">Horizon</a>, the community rewrite of Minecraft 26.3 in Rust, next to the official Java server (<a href="https://github.com/danieltorquatof/minecraft-backup/pull/2">PR #2</a>, <a href="https://github.com/danieltorquatof/minecraft-backup/pull/3">PR #3</a>). This post now covers the new server layer, the Horizon image and how a stop from inside the game is handled.</p>
+<p>The previous update (October 22, 2026) was a <a href="https://github.com/danieltorquatof/minecraft-backup/pull/1">reliability and security release</a>: most importantly, <strong>the GitHub token is no longer embedded in the remote URL</strong>, where the original version wrote it to the repository config and to the logs. See the revision history.</p>
 </div>
 </div>
 <hr>
 <section id="reference-implementation" class="level2">
 <h2 class="anchored" data-anchor-id="reference-implementation">Reference Implementation</h2>
 <p>The complete implementation described throughout this post is publicly available in the following repository:</p>
-<p><strong>GitHub Repository</strong> <a href="https://github.com/danieltorquatof/minecraft-backup">danieltorquatof/minecraft-backup</a> · <a href="../../projects/minecraft-backup/index.html">project page</a> (status and updates)</p>
-<p>The project contains the full set of scripts, Docker definitions and utility functions that support the automation flow presented below. The excerpts in this post come from commit <a href="https://github.com/danieltorquatof/minecraft-backup/tree/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe"><code>e0cc658</code></a>; reviewing the code directly in the repository can help contextualise the behaviour of each component and illustrate how the pieces integrate in practice.</p>
+<p><strong>GitHub Repository</strong><br>
+<a href="https://github.com/danieltorquatof/minecraft-backup">danieltorquatof/minecraft-backup</a> · <a href="../../projects/minecraft-backup/index.html">project page</a> (status and updates)</p>
+<p>The project contains the full set of scripts, Docker definitions and utility functions that support the automation flow presented below. The excerpts in this post come from commit <a href="https://github.com/danieltorquatof/minecraft-backup/tree/80236c90b7946e809c9866075d8f63f861e723ab"><code>80236c9</code></a>; reviewing the code directly in the repository can help contextualise the behaviour of each component and illustrate how the pieces integrate in practice.</p>
 <hr>
 </section>
 <section id="key-code-excerpts" class="level2">
 <h2 class="anchored" data-anchor-id="key-code-excerpts">Key Code Excerpts</h2>
-<p>Although the full implementation is available in the repository, a few excerpts help illustrate the mechanics behind the automation layer. The example below shows how the autosave routine guards against overlapping runs and then delegates world persistence to a dedicated function that commits the updated data to Git.</p>
+<p>Although the full implementation is available in the repository, a few excerpts help illustrate the mechanics behind the automation layer. The example below shows how the autosave routine guards against overlapping runs and then delegates world persistence to a dedicated function that commits the updated data to Git. That function talks to the game through a small server layer, so it works the same with the Java server and with Horizon.</p>
 <section id="scriptsautosave.sh" class="level3">
 <h3 class="anchored" data-anchor-id="scriptsautosave.sh">scripts/autosave.sh</h3>
-<p><a href="https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/scripts/autosave.sh">View on GitHub</a></p>
+<p><a href="https://github.com/danieltorquatof/minecraft-backup/blob/80236c90b7946e809c9866075d8f63f861e723ab/scripts/autosave.sh">View on GitHub</a></p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">#!/bin/bash</span></span>
@@ -146,7 +148,7 @@ font-style: inherit;">log</span> <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"AUTOSAVE"</span> <span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">"Server is not accepting RCON commands yet. Skipping."</span></span>
+font-style: inherit;">"Server is not accepting commands yet. Skipping."</span></span>
 <span id="cb1-18">  <span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">exit</span> 0</span>
@@ -204,7 +206,7 @@ font-style: inherit;">"Execution completed."</span></span></code></pre></div></d
 </section>
 <section id="utilssaveworld.sh" class="level3">
 <h3 class="anchored" data-anchor-id="utilssaveworld.sh">utils/saveWorld.sh</h3>
-<p><a href="https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/utils/saveWorld.sh">View on GitHub</a></p>
+<p><a href="https://github.com/danieltorquatof/minecraft-backup/blob/80236c90b7946e809c9866075d8f63f861e723ab/utils/saveWorld.sh">View on GitHub</a></p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Flushes the world to disk (when the server is running), commits every change and pushes it.</span></span>
@@ -259,7 +261,7 @@ font-style: inherit;">=</span>true</span>
 <span id="cb2-10"></span>
 <span id="cb2-11">    <span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">rcon</span> <span class="st" style="color: #20794D;
+font-style: inherit;">server_cmd</span> <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">'tellraw @a {"text":"📂 Backup started!","color":"gold"}'</span> <span class="op" style="color: #5E5E5E;
 background-color: null;
@@ -270,12 +272,12 @@ background-color: null;
 font-style: inherit;"># Pause automatic saving so region files are not rewritten while they are staged.</span></span>
 <span id="cb2-14">    <span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">rcon</span> save-off <span class="op" style="color: #5E5E5E;
+font-style: inherit;">server_cmd</span> save-off <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">&gt;</span>/dev/null</span>
 <span id="cb2-15">    <span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">rcon</span> save-all flush <span class="op" style="color: #5E5E5E;
+font-style: inherit;">server_cmd</span> save-all flush <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">&gt;</span>/dev/null</span>
 <span id="cb2-16">  <span class="cf" style="color: #003B4F;
@@ -329,7 +331,7 @@ font-weight: bold;
 font-style: inherit;">then</span></span>
 <span id="cb2-22">    <span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">rcon</span> save-on <span class="op" style="color: #5E5E5E;
+font-style: inherit;">server_cmd</span> save-on <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">&gt;</span>/dev/null <span class="kw" style="color: #003B4F;
 background-color: null;
@@ -542,25 +544,141 @@ background-color: null;
 font-weight: bold;
 font-style: inherit;">}</span></span></code></pre></div></div>
 </section>
+<section id="utilsserver.sh-one-interface-two-servers" class="level3">
+<h3 class="anchored" data-anchor-id="utilsserver.sh-one-interface-two-servers">utils/server.sh: one interface, two servers</h3>
+<p><a href="https://github.com/danieltorquatof/minecraft-backup/blob/80236c90b7946e809c9866075d8f63f861e723ab/utils/server.sh">View on GitHub</a></p>
+<p><code>SERVER_FLAVOR</code> is set by each Dockerfile. The Java image sends console commands through RCON; Horizon has a local control API (<code>horizon-server cmd</code>), so it needs no RCON at all. Everything above this layer only calls <code>server_cmd</code> and <code>server_online</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Runs one console command (e.g. `server_cmd save-all flush`). Fails if the server can't be reached.</span></span>
+<span id="cb3-2"><span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">server_cmd()</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">{</span></span>
+<span id="cb3-3">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">is_horizon</span><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">;</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">then</span></span>
+<span id="cb3-4">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">horizon</span> cmd <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">$@</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span></span>
+<span id="cb3-5">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span></span>
+<span id="cb3-6">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">rcon</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">$@</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span></span>
+<span id="cb3-7">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">fi</span></span>
+<span id="cb3-8"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">}</span></span>
+<span id="cb3-9"></span>
+<span id="cb3-10"><span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">server_online()</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">{</span></span>
+<span id="cb3-11">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">is_horizon</span><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">;</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">then</span></span>
+<span id="cb3-12">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">horizon</span> status <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--json</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;</span>/dev/null <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">|</span> <span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">grep</span> <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">-q</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'"phase":"running"'</span></span>
+<span id="cb3-13">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span></span>
+<span id="cb3-14">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">rcon</span> list <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;</span>/dev/null <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;&amp;</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb3-15">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">fi</span></span>
+<span id="cb3-16"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">}</span></span></code></pre></div></div>
+</section>
 <section id="utilscommon.sh-credentials" class="level3">
 <h3 class="anchored" data-anchor-id="utilscommon.sh-credentials">utils/common.sh: credentials</h3>
-<p><a href="https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/utils/common.sh">View on GitHub</a></p>
+<p><a href="https://github.com/danieltorquatof/minecraft-backup/blob/80236c90b7946e809c9866075d8f63f861e723ab/utils/common.sh">View on GitHub</a></p>
 <p>The token is handed to Git through an inline credential helper defined in environment variables, so it never reaches the remote URL, a config file or the logs:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><span class="bu" style="color: null;
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">export</span> <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">GIT_TERMINAL_PROMPT</span><span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span>0</span>
-<span id="cb3-2"><span class="bu" style="color: null;
+<span id="cb4-2"><span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">export</span> <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">GIT_CONFIG_COUNT</span><span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span>3</span>
-<span id="cb3-3"><span class="bu" style="color: null;
+<span id="cb4-3"><span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">export</span> <span class="va" style="color: #111111;
 background-color: null;
@@ -569,7 +687,7 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"safe.directory"</span></span>
-<span id="cb3-4"><span class="bu" style="color: null;
+<span id="cb4-4"><span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">export</span> <span class="va" style="color: #111111;
 background-color: null;
@@ -582,7 +700,7 @@ background-color: null;
 font-style: inherit;">$REPO_DIR</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"</span></span>
-<span id="cb3-5"><span class="bu" style="color: null;
+<span id="cb4-5"><span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">export</span> <span class="va" style="color: #111111;
 background-color: null;
@@ -591,7 +709,7 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"init.defaultBranch"</span></span>
-<span id="cb3-6"><span class="bu" style="color: null;
+<span id="cb4-6"><span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">export</span> <span class="va" style="color: #111111;
 background-color: null;
@@ -604,7 +722,7 @@ background-color: null;
 font-style: inherit;">$GIT_BRANCH</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"</span></span>
-<span id="cb3-7"><span class="bu" style="color: null;
+<span id="cb4-7"><span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">export</span> <span class="va" style="color: #111111;
 background-color: null;
@@ -613,7 +731,7 @@ background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">"credential.helper"</span></span>
-<span id="cb3-8"><span class="bu" style="color: null;
+<span id="cb4-8"><span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">export</span> <span class="va" style="color: #111111;
 background-color: null;
@@ -641,11 +759,12 @@ font-style: inherit;">'!f() { test "$1" = get &amp;&amp; test -n "$GITHUB_TOKEN"
 <pre class="mermaid mermaid-js">flowchart TB;
   A[Container starts]
   B[Validate configuration]
+  Z[Horizon only: prepare server.toml and game files]
   C[Initialisation script]
   D{Remote has backups?}
   E[Clone or fast-forward repository]
   F[Prepare empty repository]
-  G[Start Minecraft server]
+  G[Start Minecraft server: Java or Horizon]
   H[Periodic loop starts]
   I[Autosave script executes every N minutes]
   J[saveWorld.sh]
@@ -657,7 +776,8 @@ font-style: inherit;">'!f() { test "$1" = get &amp;&amp; test -n "$GITHUB_TOKEN"
   P[Shutdown script]
 
   A --&gt; B
-  B --&gt; C
+  B --&gt; Z
+  Z --&gt; C
   C --&gt; D
 
   D -- Yes --&gt; E
@@ -690,64 +810,100 @@ font-style: inherit;">'!f() { test "$1" = get &amp;&amp; test -n "$GITHUB_TOKEN"
 <section id="understanding-the-file-structure" class="level2">
 <h2 class="anchored" data-anchor-id="understanding-the-file-structure">Understanding the File Structure</h2>
 <p>The project uses a modular structure that separates concerns and creates predictable behaviours. Each file contributes uniquely to the automation pipeline.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><span class="bu" style="color: null;
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">.</span></span>
-<span id="cb4-2"><span class="ex" style="color: null;
+<span id="cb5-2"><span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">├──</span> .github/workflows/ci.yml   <span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;"># ShellCheck, Hadolint, compose validation and image build</span></span>
-<span id="cb4-3"><span class="ex" style="color: null;
+font-style: inherit;"># ShellCheck, Hadolint, compose validation, image builds and a Horizon smoke test</span></span>
+<span id="cb5-3"><span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">├──</span> docker-compose.yml</span>
-<span id="cb4-4"><span class="ex" style="color: null;
+font-style: inherit;">├──</span> docker-compose.yml         <span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">├──</span> Dockerfile</span>
-<span id="cb4-5"><span class="ex" style="color: null;
+font-style: inherit;"># Java server (itzg/minecraft-server)</span></span>
+<span id="cb5-4"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">├──</span> docker-compose.horizon.yml <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Horizon server (Rust)</span></span>
+<span id="cb5-5"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">├──</span> Dockerfile                 <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Java image</span></span>
+<span id="cb5-6"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">├──</span> Dockerfile.horizon         <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Horizon image</span></span>
+<span id="cb5-7"><span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">├──</span> entrypoint.sh              <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Startup → periodic loop → graceful shutdown</span></span>
-<span id="cb4-6"><span class="ex" style="color: null;
+<span id="cb5-8"><span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">├──</span> .env.example</span>
-<span id="cb4-7"><span class="ex" style="color: null;
+font-style: inherit;">├──</span> .env.example               <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Java settings</span></span>
+<span id="cb5-9"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">├──</span> .env.horizon.example       <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Horizon settings</span></span>
+<span id="cb5-10"><span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">├──</span> scripts</span>
-<span id="cb4-8"><span class="ex" style="color: null;
+<span id="cb5-11"><span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">│</span>   ├── autosave.sh            <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Periodic backup (can also be run by hand)</span></span>
-<span id="cb4-9"><span class="ex" style="color: null;
+<span id="cb5-12"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">│</span>   ├── healthcheck.sh         <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Docker health check of the Horizon image</span></span>
+<span id="cb5-13"><span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">│</span>   ├── init.sh                <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Restores/clones the world before the server starts</span></span>
-<span id="cb4-10"><span class="ex" style="color: null;
+<span id="cb5-14"><span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">│</span>   └── shutdown.sh            <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Final backup after the server stops</span></span>
-<span id="cb4-11"><span class="ex" style="color: null;
+<span id="cb5-15"><span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">└──</span> utils</span>
-<span id="cb4-12">    <span class="ex" style="color: null;
+<span id="cb5-16">    <span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">├──</span> common.sh              <span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;"># Shared configuration, git/RCON helpers</span></span>
-<span id="cb4-13">    <span class="ex" style="color: null;
+font-style: inherit;"># Shared configuration and git helpers</span></span>
+<span id="cb5-17">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">├──</span> horizon.sh             <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Horizon setup: server.toml, world name, game files</span></span>
+<span id="cb5-18">    <span class="ex" style="color: null;
 background-color: null;
 font-style: inherit;">├──</span> log.sh                 <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Logging to stdout and ./logs</span></span>
-<span id="cb4-14">    <span class="ex" style="color: null;
+<span id="cb5-19">    <span class="ex" style="color: null;
 background-color: null;
-font-style: inherit;">└──</span> saveWorld.sh           <span class="co" style="color: #5E5E5E;
+font-style: inherit;">├──</span> saveWorld.sh           <span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;"># Flush → commit → push</span></span></code></pre></div></div>
+font-style: inherit;"># Flush → commit → push</span></span>
+<span id="cb5-20">    <span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">└──</span> server.sh              <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Server backend: start, console commands, online check (Java or Horizon)</span></span></code></pre></div></div>
 <p>Each one will be explained individually so the full picture becomes clear.</p>
 <hr>
 </section>
@@ -764,6 +920,7 @@ font-style: inherit;"># Flush → commit → push</span></span></code></pre></di
 <li>A three minute <code>stop_grace_period</code>, so Docker does not kill the container while the final backup is being pushed.</li>
 </ul>
 <p>Its purpose is to maintain stability across restarts and ensure that all automation scripts remain present inside the container.</p>
+<p><code>docker-compose.horizon.yml</code> does the same for Horizon. It mounts the Minecraft 26.3 game files read-only (Horizon needs files prepared from your own copy of the game, which are never shipped in the image) and allows four minutes to stop, since Horizon may take up to three to save. Both files share <code>./data</code>, so the same world can move between the two servers, one at a time.</p>
 <hr>
 </section>
 <section id="dockerfile" class="level3">
@@ -790,6 +947,10 @@ font-style: inherit;"># Flush → commit → push</span></span></code></pre></di
 </div>
 </div>
 <p>This duality of stability and customisation supports the idea of predictable infrastructure that can also adapt to specific needs.</p>
+</section>
+<section id="dockerfile.horizon" class="level3">
+<h3 class="anchored" data-anchor-id="dockerfile.horizon">Dockerfile.horizon</h3>
+<p>Horizon publishes an official Dockerfile but no image, so <code>Dockerfile.horizon</code> downloads a pinned, dated nightly release and verifies it against the published <code>SHA256SUMS</code> before installing the same scripts. Pinning matters here: Horizon changes daily, so a new version is tested on a copy of the world before the pin moves. The image runs as UID 1000, like the Java one, and adds a Docker health check.</p>
 <hr>
 </section>
 </section>
@@ -800,10 +961,11 @@ font-style: inherit;"># Flush → commit → push</span></span></code></pre></di
 <p>This script coordinates the lifecycle of the server and backup system.</p>
 <p>It performs:</p>
 <ol type="1">
-<li>Configuration validation (repository name, token, interval);</li>
+<li>Configuration validation (repository name, token, interval and, for Horizon, the EULA);</li>
+<li>Horizon setup, when that image is used (<code>utils/horizon.sh</code>);</li>
 <li>Initialisation and startup synchronisation;</li>
 <li>Launch of the periodic autosave loop;</li>
-<li>Delegation to the official Minecraft server start script;</li>
+<li>Server start through <code>server_start</code>: the itzg start script or <code>horizon-server run</code>;</li>
 <li>Graceful shutdown: the server is stopped first, then the final backup runs.</li>
 </ol>
 <p>A second diagram helps illustrate this behaviour.</p>
@@ -827,7 +989,10 @@ font-style: inherit;"># Flush → commit → push</span></span></code></pre></di
 
   A --&gt; V
   V -- No --&gt; X
-  V -- Yes --&gt; B
+  V -- Yes --&gt; HZ{Horizon?}
+  HZ -- Yes --&gt; HS[Prepare server.toml and game files]
+  HZ -- No --&gt; B
+  HS --&gt; B
   B --&gt; C
   C --&gt; D
   D --&gt; E
@@ -843,6 +1008,7 @@ font-style: inherit;"># Flush → commit → push</span></span></code></pre></di
 </div>
 </div>
 <p>This flow ensures that no world data is lost, regardless of how the container stops. The same final backup also runs when the server stops on its own, for example after <code>/stop</code> in game.</p>
+<p>Horizon needed one extra piece here. When the game is stopped from inside (<code>/stop</code>, RCON or <code>horizon-server cmd stop</code>), its supervisor stays up on purpose, waiting for a <code>start</code> that never comes in a container: the container would stay up, autosaves would skip every run and no final backup would be taken. A small watcher (<code>server_watch_stop</code>) ends the supervisor once the game reports <code>stopped</code> twice in a row, after having been up, so the usual shutdown path takes over. Checking twice skips the brief <code>stopped</code> phase a <code>horizon-server restart</code> passes through.</p>
 <hr>
 </section>
 </section>
@@ -850,7 +1016,17 @@ font-style: inherit;"># Flush → commit → push</span></span></code></pre></di
 <h2 class="anchored" data-anchor-id="utility-layers">Utility Layers</h2>
 <section id="utilscommon.sh" class="level3">
 <h3 class="anchored" data-anchor-id="utilscommon.sh">utils/common.sh</h3>
-<p>Shared configuration used by every script: the Git identity (commits fail without a committer), the credential helper shown above, RCON helpers and a function that runs Git as the same user as the server, so no world file ends up owned by root.</p>
+<p>Shared configuration used by every script: the Git identity (commits fail without a committer), the credential helper shown above and a function that runs Git as the same user as the server, so no world file ends up owned by root.</p>
+<hr>
+</section>
+<section id="utilsserver.sh" class="level3">
+<h3 class="anchored" data-anchor-id="utilsserver.sh">utils/server.sh</h3>
+<p>The server backend shown in the excerpts: how to start the server, send it console commands and tell whether it is up, for either flavour. It also holds the Horizon stop watcher.</p>
+<hr>
+</section>
+<section id="utilshorizon.sh" class="level3">
+<h3 class="anchored" data-anchor-id="utilshorizon.sh">utils/horizon.sh</h3>
+<p>Runs only on the Horizon image, before the world is restored. It writes <code>server.toml</code> on the first start, always sets the world name to the backup repository name, turns off Horizon’s own zip backups (they also pause saving and would collide with the Git ones) and checks that the prepared game files are present, stopping the container with a clear message when they are not.</p>
 <hr>
 </section>
 <section id="utilslog.sh" class="level3">
@@ -862,7 +1038,7 @@ font-style: inherit;"># Flush → commit → push</span></span></code></pre></di
 <h3 class="anchored" data-anchor-id="utilssaveworld.sh-1">utils/saveWorld.sh</h3>
 <p>The most responsibilities in the automation pipeline concentrate here. It performs:</p>
 <ul>
-<li>In game world flush via RCON, with automatic saving paused while files are staged</li>
+<li>In game world flush through the server layer (RCON on Java, the control API on Horizon), with automatic saving paused while files are staged</li>
 <li>Git staging and committing (only when something changed)</li>
 <li>Push synchronisation with GitHub, including commits left behind by earlier failed pushes</li>
 <li>Messaging for both users and logs</li>
@@ -885,20 +1061,21 @@ font-style: inherit;"># Flush → commit → push</span></span></code></pre></di
 </section>
 <section id="scriptsshutdown.sh" class="level3">
 <h3 class="anchored" data-anchor-id="scriptsshutdown.sh">scripts/shutdown.sh</h3>
-<p>Triggered after the server has stopped. It waits for any backup still in progress and calls <code>saveWorld.sh</code> so the final server state is stored safely. Because the server has already flushed the world to disk, this prevents data corruption and makes the server restart friendly regardless of how the container was stopped.</p>
+<p>Triggered after the server has stopped, whether by <code>docker compose stop</code>, by the game itself or, on Horizon, by the stop watcher. It waits for any backup still in progress and calls <code>saveWorld.sh</code> so the final server state is stored safely. Because the server has already flushed the world to disk, this prevents data corruption and makes the server restart friendly regardless of how the container was stopped.</p>
 <hr>
 </section>
 </section>
 <section id="environment-templates-and-management" class="level2">
 <h2 class="anchored" data-anchor-id="environment-templates-and-management">Environment Templates and Management</h2>
-<section id="env.example" class="level3">
-<h3 class="anchored" data-anchor-id="env.example">.env.example</h3>
-<p>Guides the user in defining:</p>
+<section id="env.example-and-.env.horizon.example" class="level3">
+<h3 class="anchored" data-anchor-id="env.example-and-.env.horizon.example">.env.example and .env.horizon.example</h3>
+<p>Guide the user in defining:</p>
 <ul>
 <li>GitHub repository credentials (a fine-grained token limited to the backup repository is enough)</li>
 <li>Minecraft server settings and the base image tag</li>
 <li>Backup intervals and an optional Git remote other than GitHub</li>
 <li>Metadata for commits</li>
+<li>For Horizon: the EULA, where the prepared game files are and first-start settings such as the seed and whitelist</li>
 </ul>
 <p>This separation of configuration strengthens clarity and reduces accidental misconfiguration, and the entrypoint refuses to start with an invalid one.</p>
 <hr>
@@ -908,7 +1085,7 @@ font-style: inherit;"># Flush → commit → push</span></span></code></pre></di
 <h1>Why This Matters</h1>
 <p>Although the technical implementation is interesting, the motivation emerged from a real problem. Playing Minecraft with my partner is one of our favourite activities and losing progress due to corruption or abrupt shutdowns was frustrating. Manual backups were easy to forget and relying on memory alone was not sustainable.</p>
 <p>Creating an infrastructure that handles backups automatically removed the cognitive load entirely. It also ensured that every session became safe. The system evolved from a personal inconvenience into an elegant example of how automation thinking can improve both professional and personal digital environments.</p>
-<p>This project demonstrates that reliable systems do not appear spontaneously. They are built through reasoning, testing and iteration. The first version already worked for everyday use, yet running it for months revealed failures that only appear over time: commits that failed without a committer identity, a token that leaked into the logs, a final backup racing against the server’s own shutdown. Whether used for game worlds, business processes or experimental environments, the principles remain consistent: predictable automation, clear observability and robust fallback mechanisms.</p>
+<p>This project demonstrates that reliable systems do not appear spontaneously. They are built through reasoning, testing and iteration. The first version already worked for everyday use, yet running it for months revealed failures that only appear over time: commits that failed without a committer identity, a token that leaked into the logs, a final backup racing against the server’s own shutdown. Adding a second server later was mostly a matter of putting a small interface where the code used to call RCON directly, and testing it against the real thing exposed the one behaviour no documentation mentioned: a game that stops while its supervisor keeps running. Whether used for game worlds, business processes or experimental environments, the principles remain consistent: predictable automation, clear observability and robust fallback mechanisms.</p>
 <hr>
 </section>
 <section id="final-considerations" class="level1 page-columns page-full">
@@ -919,6 +1096,7 @@ font-style: inherit;"># Flush → commit → push</span></span></code></pre></di
 <section id="revision-history" class="level2 page-columns page-full">
 <h2 class="anchored" data-anchor-id="revision-history">Revision history</h2>
 <ul>
+<li><strong>November 5, 2026</strong>: Added Horizon (Rust) support to the reference implementation (<a href="https://github.com/danieltorquatof/minecraft-backup/pull/2">PR #2</a>, <a href="https://github.com/danieltorquatof/minecraft-backup/pull/3">PR #3</a>): server layer (<code>utils/server.sh</code>) in the excerpts, Horizon image and compose file, Horizon setup and the in-game stop watcher.</li>
 <li><strong>October 22, 2026</strong>: Updated for the reliability and security release of the reference implementation (<a href="https://github.com/danieltorquatof/minecraft-backup/pull/1">PR #1</a>): new code excerpts, credential handling, graceful shutdown, consistent snapshots, Java 25 image and CI.</li>
 <li><strong>December 4, 2025</strong>: First published.</li>
 </ul>
@@ -954,14 +1132,15 @@ font-style: inherit;"># Flush → commit → push</span></span></code></pre></di
 <hr>
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Minecraft Backup wraps the <a href="https://docker-minecraft-server.readthedocs.io/en/latest/"><code>itzg/minecraft-server</code></a> image with a custom entrypoint that treats the world folder as a Git repository. The world is restored from GitHub when the container starts, committed and pushed at a fixed interval while people play, and backed up one last time after the server stops cleanly, so a world can always be recovered, moved to another machine or rolled back to an earlier commit.</p>
+<p>Minecraft Backup wraps a Minecraft server with a custom entrypoint that treats the world folder as a Git repository. It ships two images: one built on the official <a href="https://docker-minecraft-server.readthedocs.io/en/latest/"><code>itzg/minecraft-server</code></a> Java image, and one running <a href="https://github.com/horizon-rust/horizon">Horizon</a>, the community rewrite of Minecraft 26.3 in Rust. The world is restored from GitHub when the container starts, committed and pushed at a fixed interval while people play, and backed up one last time after the server stops cleanly, so a world can always be recovered, moved to another machine or rolled back to an earlier commit.</p>
 <ul>
 <li><strong>Periodic backups</strong>: a Git commit every <code>PERIODIC_INTERVAL</code> minutes, created only when something changed.</li>
 <li><strong>Consistent snapshots</strong>: automatic saving is paused (<code>save-off</code> / <code>save-all flush</code>) while files are staged.</li>
 <li><strong>Graceful shutdown</strong>: the server stops first, then the final backup is committed and pushed.</li>
 <li><strong>Safe credentials</strong>: the GitHub token stays in memory, never in the remote URL, the repository config or the logs.</li>
 <li><strong>Any Git remote</strong>: GitHub by default, or GitLab, Gitea or a bare repository through <code>GIT_REMOTE_URL</code>.</li>
-<li><strong>Compatible with the official image</strong>: every <code>itzg/minecraft-server</code> variable still works.</li>
+<li><strong>Java or Horizon (Rust)</strong>: both servers use the vanilla world format, so the same backup repository can move from one to the other.</li>
+<li><strong>Compatible with the official image</strong>: every <code>itzg/minecraft-server</code> variable still works on the Java image.</li>
 </ul>
 </section>
 <section id="quick-start" class="level2">
@@ -984,7 +1163,22 @@ background-color: null;
 font-style: inherit;">-d</span> <span class="at" style="color: #657422;
 background-color: null;
 font-style: inherit;">--build</span></span></code></pre></div></div>
-<p>The <a href="https://github.com/danieltorquatof/minecraft-backup#readme">README</a> covers the token permissions, every variable and how to restore an older backup.</p>
+<p>For Horizon, prepare the Minecraft 26.3 game files from your own copy of the game with the Horizon launcher, then:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">cp</span> .env.horizon.example .env   <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># backup variables + HORIZON_EULA and HORIZON_RESOURCES_DIR</span></span>
+<span id="cb2-2"><span class="ex" style="color: null;
+background-color: null;
+font-style: inherit;">docker</span> compose <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">-f</span> docker-compose.horizon.yml up <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">-d</span> <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">--build</span></span></code></pre></div></div>
+<p>The <a href="https://github.com/danieltorquatof/minecraft-backup#readme">README</a> covers the token permissions, every variable, the Horizon setup and how to restore an older backup.</p>
 </section>
 <section id="updates" class="level2">
 <h2 class="anchored" data-anchor-id="updates">Updates</h2>
@@ -997,10 +1191,14 @@ font-style: inherit;">--build</span></span></code></pre></div></div>
 </thead>
 <tbody>
 <tr class="odd">
+<td>2026-11-05</td>
+<td><strong>Horizon (Rust) support</strong> (<a href="https://github.com/danieltorquatof/minecraft-backup/pull/2">PR #2</a>, <a href="https://github.com/danieltorquatof/minecraft-backup/pull/3">PR #3</a>): a second image runs a pinned, checksum-verified Horizon release with the same Git backups. Console commands go through Horizon’s local control API instead of RCON, the world name and game files are set up on start, and stopping the game from inside (<code>/stop</code>) now ends the container with a final backup, as on the Java server. CI builds both images and smoke-tests Horizon.</td>
+</tr>
+<tr class="even">
 <td>2026-10-22</td>
 <td><strong>Reliability and security release</strong> (<a href="https://github.com/danieltorquatof/minecraft-backup/pull/1">PR #1</a>): backup commits no longer fail silently, graceful shutdown before the final backup, token removed from remote URLs and logs, consistent snapshots with backup locking, safer handling of empty or diverged remotes, RCON no longer published, Java 25 base image and CI (ShellCheck, Hadolint, compose validation, image build).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>2025-12-04</td>
 <td><strong>Initial release</strong>: periodic Git backups to GitHub, restore on startup and backup on shutdown.</td>
 </tr>
@@ -1011,7 +1209,7 @@ font-style: inherit;">--build</span></span></code></pre></div></div>
 <h2 class="anchored" data-anchor-id="write-ups">Write-ups</h2>
 <div id="listing-write-ups" class="quarto-listing quarto-listing-container-default">
 <div class="list quarto-listing-default">
-<div class="quarto-post image-right" data-index="0" data-categories="RGV2T3BzJTJDQXV0b21hdGlvbiUyQ0luZnJhc3RydWN0dXJlJTJDU3lzdGVtcyUyMERlc2lnbiUyQ1JlbGlhYmlsaXR5JTIwRW5naW5lZXJpbmc=" data-listing-date-sort="1764806400000" data-listing-file-modified-sort="1793304082000" data-listing-date-modified-sort="1792627200000" data-listing-reading-time-sort="12" data-listing-word-count-sort="2370">
+<div class="quarto-post image-right" data-index="0" data-categories="RGV2T3BzJTJDQXV0b21hdGlvbiUyQ0luZnJhc3RydWN0dXJlJTJDU3lzdGVtcyUyMERlc2lnbiUyQ1JlbGlhYmlsaXR5JTIwRW5naW5lZXJpbmc=" data-listing-date-sort="1764806400000" data-listing-file-modified-sort="1793852238000" data-listing-date-modified-sort="1793836800000" data-listing-reading-time-sort="16" data-listing-word-count-sort="3155">
 <div class="body">
 <h3 class="no-anchor listing-title">
 <a href="../../posts/reliable-automation-pipelines-persistent-game-worlds/index.html" class="no-external">Designing Reliable Automation Pipelines for Persistent Game Worlds</a>
@@ -1050,6 +1248,7 @@ December 4, 2025
   <category>Automation</category>
   <category>Backup</category>
   <category>Minecraft</category>
+  <category>Horizon</category>
   <guid>https://blog.danieltorquatof.spikeystudio.com/projects/minecraft-backup/</guid>
   <pubDate>Thu, 04 Dec 2025 00:00:00 GMT</pubDate>
 </item>
