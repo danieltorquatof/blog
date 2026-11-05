@@ -4,7 +4,7 @@ subtitle: "A practical exploration of reasoning, architecture and stable backup 
 description: "This post presents the reasoning process and technical decisions that led to the creation of a reliable backup and automation workflow for persistent game servers, including a real use case related to maintaining stable Minecraft sessions at home."
 
 date: 2025-12-04
-date-modified: 2026-10-22
+date-modified: 2026-11-05
 
 # Permanent short link: /posts/<uuid>/ redirects here (utils/seo_postrender.py)
 uuid: 272f6b74-e11a-4ade-a717-0e037d062c7c
@@ -20,9 +20,11 @@ draft: false
 ---
 
 ::: {.callout-note}
-## Updated on October 22, 2026
+## Updated on November 5, 2026
 
-The reference implementation received a [reliability and security release](https://github.com/danieltorquatof/minecraft-backup/pull/1) and this post now reflects it. Most importantly, **the GitHub token is no longer embedded in the remote URL** (the original version wrote it to the repository config and to the logs). The update also fixes backup commits that could fail silently, stops the server cleanly before the final backup, pauses saving while files are staged, adds CI and moves to the Java 25 image. See the [revision history](#revision-history).
+The reference implementation now also runs [Horizon](https://github.com/horizon-rust/horizon), the community rewrite of Minecraft 26.3 in Rust, next to the official Java server ([PR #2](https://github.com/danieltorquatof/minecraft-backup/pull/2), [PR #3](https://github.com/danieltorquatof/minecraft-backup/pull/3)). This post now covers the new server layer, the Horizon image and how a stop from inside the game is handled.
+
+The previous update (October 22, 2026) was a [reliability and security release](https://github.com/danieltorquatof/minecraft-backup/pull/1): most importantly, **the GitHub token is no longer embedded in the remote URL**, where the original version wrote it to the repository config and to the logs. See the [revision history](#revision-history).
 :::
 
 ---
@@ -31,20 +33,20 @@ The reference implementation received a [reliability and security release](https
 
 The complete implementation described throughout this post is publicly available in the following repository:
 
-**GitHub Repository**
+**GitHub Repository**  
 [danieltorquatof/minecraft-backup](https://github.com/danieltorquatof/minecraft-backup) · [project page](../../projects/minecraft-backup/index.qmd) (status and updates)
 
-The project contains the full set of scripts, Docker definitions and utility functions that support the automation flow presented below. The excerpts in this post come from commit [`e0cc658`](https://github.com/danieltorquatof/minecraft-backup/tree/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe); reviewing the code directly in the repository can help contextualise the behaviour of each component and illustrate how the pieces integrate in practice.
+The project contains the full set of scripts, Docker definitions and utility functions that support the automation flow presented below. The excerpts in this post come from commit [`80236c9`](https://github.com/danieltorquatof/minecraft-backup/tree/80236c90b7946e809c9866075d8f63f861e723ab); reviewing the code directly in the repository can help contextualise the behaviour of each component and illustrate how the pieces integrate in practice.
 
 ---
 
 ## Key Code Excerpts
 
-Although the full implementation is available in the repository, a few excerpts help illustrate the mechanics behind the automation layer. The example below shows how the autosave routine guards against overlapping runs and then delegates world persistence to a dedicated function that commits the updated data to Git.
+Although the full implementation is available in the repository, a few excerpts help illustrate the mechanics behind the automation layer. The example below shows how the autosave routine guards against overlapping runs and then delegates world persistence to a dedicated function that commits the updated data to Git. That function talks to the game through a small server layer, so it works the same with the Java server and with Horizon.
 
 ### scripts/autosave.sh
 
-[View on GitHub](https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/scripts/autosave.sh)
+[View on GitHub](https://github.com/danieltorquatof/minecraft-backup/blob/80236c90b7946e809c9866075d8f63f861e723ab/scripts/autosave.sh)
 
 ```bash
 #!/bin/bash
@@ -63,7 +65,7 @@ if ! flock -n 9; then
 fi
 
 if ! server_online; then
-  log "AUTOSAVE" "Server is not accepting RCON commands yet. Skipping."
+  log "AUTOSAVE" "Server is not accepting commands yet. Skipping."
   exit 0
 fi
 
@@ -79,7 +81,7 @@ log "AUTOSAVE" "Execution completed."
 
 ### utils/saveWorld.sh
 
-[View on GitHub](https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/utils/saveWorld.sh)
+[View on GitHub](https://github.com/danieltorquatof/minecraft-backup/blob/80236c90b7946e809c9866075d8f63f861e723ab/utils/saveWorld.sh)
 
 ```bash
 # Flushes the world to disk (when the server is running), commits every change and pushes it.
@@ -92,18 +94,18 @@ saveWorld() {
   if server_online; then
     online=true
 
-    rcon 'tellraw @a {"text":"📂 Backup started!","color":"gold"}' >/dev/null
+    server_cmd 'tellraw @a {"text":"📂 Backup started!","color":"gold"}' >/dev/null
 
     # Pause automatic saving so region files are not rewritten while they are staged.
-    rcon save-off >/dev/null
-    rcon save-all flush >/dev/null
+    server_cmd save-off >/dev/null
+    server_cmd save-all flush >/dev/null
   fi
 
   local add_status=0
   repo_git add -A || add_status=$?
 
   if [ "$online" = true ]; then
-    rcon save-on >/dev/null || log "$prefix" "WARNING: could not re-enable automatic saving."
+    server_cmd save-on >/dev/null || log "$prefix" "WARNING: could not re-enable automatic saving."
   fi
 
   if [ "$add_status" -ne 0 ]; then
@@ -131,9 +133,34 @@ saveWorld() {
 }
 ```
 
+### utils/server.sh: one interface, two servers
+
+[View on GitHub](https://github.com/danieltorquatof/minecraft-backup/blob/80236c90b7946e809c9866075d8f63f861e723ab/utils/server.sh)
+
+`SERVER_FLAVOR` is set by each Dockerfile. The Java image sends console commands through RCON; Horizon has a local control API (`horizon-server cmd`), so it needs no RCON at all. Everything above this layer only calls `server_cmd` and `server_online`:
+
+```bash
+# Runs one console command (e.g. `server_cmd save-all flush`). Fails if the server can't be reached.
+server_cmd() {
+  if is_horizon; then
+    horizon cmd "$@"
+  else
+    rcon "$@"
+  fi
+}
+
+server_online() {
+  if is_horizon; then
+    horizon status --json 2>/dev/null | grep -q '"phase":"running"'
+  else
+    rcon list >/dev/null 2>&1
+  fi
+}
+```
+
 ### utils/common.sh: credentials
 
-[View on GitHub](https://github.com/danieltorquatof/minecraft-backup/blob/e0cc658021751ad17e2ebed12cc5ab3cb997e5fe/utils/common.sh)
+[View on GitHub](https://github.com/danieltorquatof/minecraft-backup/blob/80236c90b7946e809c9866075d8f63f861e723ab/utils/common.sh)
 
 The token is handed to Git through an inline credential helper defined in environment variables, so it never reaches the remote URL, a config file or the logs:
 
@@ -170,11 +197,12 @@ Before exploring each script it is useful to visualise how the overall workflow 
 flowchart TB;
   A[Container starts]
   B[Validate configuration]
+  Z[Horizon only: prepare server.toml and game files]
   C[Initialisation script]
   D{Remote has backups?}
   E[Clone or fast-forward repository]
   F[Prepare empty repository]
-  G[Start Minecraft server]
+  G[Start Minecraft server: Java or Horizon]
   H[Periodic loop starts]
   I[Autosave script executes every N minutes]
   J[saveWorld.sh]
@@ -186,7 +214,8 @@ flowchart TB;
   P[Shutdown script]
 
   A --> B
-  B --> C
+  B --> Z
+  Z --> C
   C --> D
 
   D -- Yes --> E
@@ -219,19 +248,25 @@ The project uses a modular structure that separates concerns and creates predict
 
 ```bash
 .
-├── .github/workflows/ci.yml   # ShellCheck, Hadolint, compose validation and image build
-├── docker-compose.yml
-├── Dockerfile
+├── .github/workflows/ci.yml   # ShellCheck, Hadolint, compose validation, image builds and a Horizon smoke test
+├── docker-compose.yml         # Java server (itzg/minecraft-server)
+├── docker-compose.horizon.yml # Horizon server (Rust)
+├── Dockerfile                 # Java image
+├── Dockerfile.horizon         # Horizon image
 ├── entrypoint.sh              # Startup → periodic loop → graceful shutdown
-├── .env.example
+├── .env.example               # Java settings
+├── .env.horizon.example       # Horizon settings
 ├── scripts
 │   ├── autosave.sh            # Periodic backup (can also be run by hand)
+│   ├── healthcheck.sh         # Docker health check of the Horizon image
 │   ├── init.sh                # Restores/clones the world before the server starts
 │   └── shutdown.sh            # Final backup after the server stops
 └── utils
-    ├── common.sh              # Shared configuration, git/RCON helpers
+    ├── common.sh              # Shared configuration and git helpers
+    ├── horizon.sh             # Horizon setup: server.toml, world name, game files
     ├── log.sh                 # Logging to stdout and ./logs
-    └── saveWorld.sh           # Flush → commit → push
+    ├── saveWorld.sh           # Flush → commit → push
+    └── server.sh              # Server backend: start, console commands, online check (Java or Horizon)
 ```
 
 Each one will be explained individually so the full picture becomes clear.
@@ -251,6 +286,8 @@ Defines how the server is launched. It handles:
 * A three minute `stop_grace_period`, so Docker does not kill the container while the final backup is being pushed.
 
 Its purpose is to maintain stability across restarts and ensure that all automation scripts remain present inside the container.
+
+`docker-compose.horizon.yml` does the same for Horizon. It mounts the Minecraft 26.3 game files read-only (Horizon needs files prepared from your own copy of the game, which are never shipped in the image) and allows four minutes to stop, since Horizon may take up to three to save. Both files share `./data`, so the same world can move between the two servers, one at a time.
 
 ---
 
@@ -274,6 +311,10 @@ flowchart LR;
 
 This duality of stability and customisation supports the idea of predictable infrastructure that can also adapt to specific needs.
 
+### Dockerfile.horizon
+
+Horizon publishes an official Dockerfile but no image, so `Dockerfile.horizon` downloads a pinned, dated nightly release and verifies it against the published `SHA256SUMS` before installing the same scripts. Pinning matters here: Horizon changes daily, so a new version is tested on a copy of the world before the pin moves. The image runs as UID 1000, like the Java one, and adds a Docker health check.
+
 ---
 
 ## Core Execution Orchestrator
@@ -284,11 +325,12 @@ This script coordinates the lifecycle of the server and backup system.
 
 It performs:
 
-1. Configuration validation (repository name, token, interval);
-2. Initialisation and startup synchronisation;
-3. Launch of the periodic autosave loop;
-4. Delegation to the official Minecraft server start script;
-5. Graceful shutdown: the server is stopped first, then the final backup runs.
+1. Configuration validation (repository name, token, interval and, for Horizon, the EULA);
+2. Horizon setup, when that image is used (`utils/horizon.sh`);
+3. Initialisation and startup synchronisation;
+4. Launch of the periodic autosave loop;
+5. Server start through `server_start`: the itzg start script or `horizon-server run`;
+6. Graceful shutdown: the server is stopped first, then the final backup runs.
 
 A second diagram helps illustrate this behaviour.
 
@@ -310,7 +352,10 @@ flowchart TB;
 
   A --> V
   V -- No --> X
-  V -- Yes --> B
+  V -- Yes --> HZ{Horizon?}
+  HZ -- Yes --> HS[Prepare server.toml and game files]
+  HZ -- No --> B
+  HS --> B
   B --> C
   C --> D
   D --> E
@@ -323,13 +368,27 @@ flowchart TB;
 
 This flow ensures that no world data is lost, regardless of how the container stops. The same final backup also runs when the server stops on its own, for example after `/stop` in game.
 
+Horizon needed one extra piece here. When the game is stopped from inside (`/stop`, RCON or `horizon-server cmd stop`), its supervisor stays up on purpose, waiting for a `start` that never comes in a container: the container would stay up, autosaves would skip every run and no final backup would be taken. A small watcher (`server_watch_stop`) ends the supervisor once the game reports `stopped` twice in a row, after having been up, so the usual shutdown path takes over. Checking twice skips the brief `stopped` phase a `horizon-server restart` passes through.
+
 ---
 
 ## Utility Layers
 
 ### utils/common.sh
 
-Shared configuration used by every script: the Git identity (commits fail without a committer), the credential helper shown above, RCON helpers and a function that runs Git as the same user as the server, so no world file ends up owned by root.
+Shared configuration used by every script: the Git identity (commits fail without a committer), the credential helper shown above and a function that runs Git as the same user as the server, so no world file ends up owned by root.
+
+---
+
+### utils/server.sh
+
+The server backend shown in the excerpts: how to start the server, send it console commands and tell whether it is up, for either flavour. It also holds the Horizon stop watcher.
+
+---
+
+### utils/horizon.sh
+
+Runs only on the Horizon image, before the world is restored. It writes `server.toml` on the first start, always sets the world name to the backup repository name, turns off Horizon's own zip backups (they also pause saving and would collide with the Git ones) and checks that the prepared game files are present, stopping the container with a clear message when they are not.
 
 ---
 
@@ -343,7 +402,7 @@ A lightweight logger that standardises how each script communicates events. Ever
 
 The most responsibilities in the automation pipeline concentrate here. It performs:
 
-* In game world flush via RCON, with automatic saving paused while files are staged
+* In game world flush through the server layer (RCON on Java, the control API on Horizon), with automatic saving paused while files are staged
 * Git staging and committing (only when something changed)
 * Push synchronisation with GitHub, including commits left behind by earlier failed pushes
 * Messaging for both users and logs
@@ -368,20 +427,21 @@ Runs periodically based on the interval defined in the environment variables. It
 
 ### scripts/shutdown.sh
 
-Triggered after the server has stopped. It waits for any backup still in progress and calls `saveWorld.sh` so the final server state is stored safely. Because the server has already flushed the world to disk, this prevents data corruption and makes the server restart friendly regardless of how the container was stopped.
+Triggered after the server has stopped, whether by `docker compose stop`, by the game itself or, on Horizon, by the stop watcher. It waits for any backup still in progress and calls `saveWorld.sh` so the final server state is stored safely. Because the server has already flushed the world to disk, this prevents data corruption and makes the server restart friendly regardless of how the container was stopped.
 
 ---
 
 ## Environment Templates and Management
 
-### .env.example
+### .env.example and .env.horizon.example
 
-Guides the user in defining:
+Guide the user in defining:
 
 * GitHub repository credentials (a fine-grained token limited to the backup repository is enough)
 * Minecraft server settings and the base image tag
 * Backup intervals and an optional Git remote other than GitHub
 * Metadata for commits
+* For Horizon: the EULA, where the prepared game files are and first-start settings such as the seed and whitelist
 
 This separation of configuration strengthens clarity and reduces accidental misconfiguration, and the entrypoint refuses to start with an invalid one.
 
@@ -393,7 +453,7 @@ Although the technical implementation is interesting, the motivation emerged fro
 
 Creating an infrastructure that handles backups automatically removed the cognitive load entirely. It also ensured that every session became safe. The system evolved from a personal inconvenience into an elegant example of how automation thinking can improve both professional and personal digital environments.
 
-This project demonstrates that reliable systems do not appear spontaneously. They are built through reasoning, testing and iteration. The first version already worked for everyday use, yet running it for months revealed failures that only appear over time: commits that failed without a committer identity, a token that leaked into the logs, a final backup racing against the server's own shutdown. Whether used for game worlds, business processes or experimental environments, the principles remain consistent: predictable automation, clear observability and robust fallback mechanisms.
+This project demonstrates that reliable systems do not appear spontaneously. They are built through reasoning, testing and iteration. The first version already worked for everyday use, yet running it for months revealed failures that only appear over time: commits that failed without a committer identity, a token that leaked into the logs, a final backup racing against the server's own shutdown. Adding a second server later was mostly a matter of putting a small interface where the code used to call RCON directly, and testing it against the real thing exposed the one behaviour no documentation mentioned: a game that stops while its supervisor keeps running. Whether used for game worlds, business processes or experimental environments, the principles remain consistent: predictable automation, clear observability and robust fallback mechanisms.
 
 ---
 
@@ -407,6 +467,7 @@ I hope this explanation clarifies not only what the system does, but also how it
 
 ## Revision history
 
+* **November 5, 2026**: Added Horizon (Rust) support to the reference implementation ([PR #2](https://github.com/danieltorquatof/minecraft-backup/pull/2), [PR #3](https://github.com/danieltorquatof/minecraft-backup/pull/3)): server layer (`utils/server.sh`) in the excerpts, Horizon image and compose file, Horizon setup and the in-game stop watcher.
 * **October 22, 2026**: Updated for the reliability and security release of the reference implementation ([PR #1](https://github.com/danieltorquatof/minecraft-backup/pull/1)): new code excerpts, credential handling, graceful shutdown, consistent snapshots, Java 25 image and CI.
 * **December 4, 2025**: First published.
 
