@@ -1,31 +1,38 @@
 [
   {
-    "objectID": "projects/minecraft-backup/index.html#overview",
-    "href": "projects/minecraft-backup/index.html#overview",
-    "title": "Minecraft Backup",
-    "section": "Overview",
-    "text": "Overview\nMinecraft Backup wraps a Minecraft server with a custom entrypoint that treats the world folder as a Git repository. It ships two images: one built on the official itzg/minecraft-server Java image, and one running Horizon, the community rewrite of Minecraft 26.3 in Rust. The world is restored from GitHub when the container starts, committed and pushed at a fixed interval while people play, and backed up one last time after the server stops cleanly, so a world can always be recovered, moved to another machine or rolled back to an earlier commit.\n\nPeriodic backups: a Git commit every PERIODIC_INTERVAL minutes, created only when something changed.\nConsistent snapshots: automatic saving is paused (save-off / save-all flush) while files are staged.\nGraceful shutdown: the server stops first, then the final backup is committed and pushed.\nSafe credentials: the GitHub token stays in memory, never in the remote URL, the repository config or the logs.\nAny Git remote: GitHub by default, or GitLab, Gitea or a bare repository through GIT_REMOTE_URL.\nJava or Horizon (Rust): both servers use the vanilla world format, so the same backup repository can move from one to the other.\nCompatible with the official image: every itzg/minecraft-server variable still works on the Java image."
+    "objectID": "articles/index.html",
+    "href": "articles/index.html",
+    "title": "Articles",
+    "section": "",
+    "text": "Notice\n          \n        \n        \n          This blog is a work in progress. Follow me on LinkedIn for updates.\n        \n      \n    \n\n\n\n\n   \n    \n    \n      Order By\n      Default\n      \n        Date - Oldest\n      \n      \n        Date - Newest\n      \n      \n        Title\n      \n    \n  \n\n\n\n\nNo matching items"
   },
   {
-    "objectID": "projects/minecraft-backup/index.html#quick-start",
-    "href": "projects/minecraft-backup/index.html#quick-start",
-    "title": "Minecraft Backup",
-    "section": "Quick start",
-    "text": "Quick start\ngit clone https://github.com/danieltorquatof/minecraft-backup.git\ncd minecraft-backup\ncp .env.example .env   # set GITHUB_USER, GITHUB_TOKEN and REPO_NAME\ndocker compose up -d --build\nFor Horizon, prepare the Minecraft 26.3 game files from your own copy of the game with the Horizon launcher, then:\ncp .env.horizon.example .env   # backup variables + HORIZON_EULA and HORIZON_RESOURCES_DIR\ndocker compose -f docker-compose.horizon.yml up -d --build\nThe README covers the token permissions, every variable, the Horizon setup and how to restore an older backup."
+    "objectID": "index.html#highlights",
+    "href": "index.html#highlights",
+    "title": "DT’s Blog",
+    "section": "Highlights",
+    "text": "Highlights\n\nThis is a collection of my thoughts, projects, articles, and achievements.\n\n\n\n\n      \n        \n          \n            \n          \n          \n            Notice\n          \n        \n        \n          This blog is a work in progress. Follow me on LinkedIn for updates."
   },
   {
-    "objectID": "projects/minecraft-backup/index.html#updates",
-    "href": "projects/minecraft-backup/index.html#updates",
-    "title": "Minecraft Backup",
-    "section": "Updates",
-    "text": "Updates\n\n\n\nDate\nUpdate\n\n\n\n\n2026-11-05\nHorizon (Rust) support (PR #2, PR #3): a second image runs a pinned, checksum-verified Horizon release with the same Git backups. Console commands go through Horizon’s local control API instead of RCON, the world name and game files are set up on start, and stopping the game from inside (/stop) now ends the container with a final backup, as on the Java server. CI builds both images and smoke-tests Horizon.\n\n\n2026-10-22\nReliability and security release (PR #1): backup commits no longer fail silently, graceful shutdown before the final backup, token removed from remote URLs and logs, consistent snapshots with backup locking, safer handling of empty or diverged remotes, RCON no longer published, Java 25 base image and CI (ShellCheck, Hadolint, compose validation, image build).\n\n\n2025-12-04\nInitial release: periodic Git backups to GitHub, restore on startup and backup on shutdown."
+    "objectID": "index.html#feed",
+    "href": "index.html#feed",
+    "title": "DT’s Blog",
+    "section": "Feed",
+    "text": "Feed\n\nThis is a feed of my latest posts, projects, articles, and achievements.\n\n\n\n\n\n\n\n\n\n\n\nDesigning Reliable Automation Pipelines for Persistent Game Worlds\n\n\nA practical exploration of reasoning, architecture and stable backup mechanisms\n\n\n\nDevOps\n\nAutomation\n\nInfrastructure\n\nSystems Design\n\nReliability Engineering\n\n\n\nThis post presents the reasoning process and technical decisions that led to the creation of a reliable backup and automation workflow for persistent game servers, including a real use case related to maintaining stable Minecraft sessions at home.\n\n\n\n\n\nDecember 4, 2025\n\n\n\n\n\n\n\n\n\n\n\n\nMinecraft Backup\n\n\nAutomated, Git-versioned backups for Minecraft servers in Docker, on the Java server or Horizon (Rust)\n\n\n\nDevOps\n\nDocker\n\nAutomation\n\nBackup\n\nMinecraft\n\nHorizon\n\n\n\nDocker images for the official Java server and Horizon, the Rust rewrite of Minecraft, that restore the world on startup and back it up to GitHub automatically.\n\n\n\n\n\nDecember 4, 2025\n\n\n\n\n\n\n\n\n\n\n\n\nStep by step guide on how to ruin your company and your team with AI\n\n\nA roadmap to the quickest way to lose your team’s trust\n\n\n\nBehavioral Analysis\n\nArtificial Intelligence\n\nEthics\n\nManagement\n\n\n\nThis post aims to apply psychology concepts to address a sensitive topic for those who are limited by the use of generative artificial intelligence tools in the professional environment, acting as a direct attack on the intellect, raising questions and seeking plausible solutions.\n\n\n\n\n\nFebruary 12, 2025\n\n\n\n\n\nNo matching items"
   },
   {
-    "objectID": "projects/minecraft-backup/index.html#write-ups",
-    "href": "projects/minecraft-backup/index.html#write-ups",
-    "title": "Minecraft Backup",
-    "section": "Write-ups",
-    "text": "Write-ups\n\n\n\n\n\nDesigning Reliable Automation Pipelines for Persistent Game Worlds\n\n\nA practical exploration of reasoning, architecture and stable backup mechanisms\n\n\nThis post presents the reasoning process and technical decisions that led to the creation of a reliable backup and automation workflow for persistent game servers, including a real use case related to maintaining stable Minecraft sessions at home.\n\n\n\n\n\nDecember 4, 2025\n\n\n\n\n\nNo matching items"
+    "objectID": "achievements/index.html",
+    "href": "achievements/index.html",
+    "title": "Achievements",
+    "section": "",
+    "text": "Notice\n          \n        \n        \n          This blog is a work in progress. Follow me on LinkedIn for updates.\n        \n      \n    \n\n\n\n\n   \n    \n    \n      Order By\n      Default\n      \n        Date - Oldest\n      \n      \n        Date - Newest\n      \n      \n        Title\n      \n    \n  \n\n\n\n\nNo matching items"
+  },
+  {
+    "objectID": "posts/index.html",
+    "href": "posts/index.html",
+    "title": "Posts",
+    "section": "",
+    "text": "Order By\n      Default\n      \n        Date - Oldest\n      \n      \n        Date - Newest\n      \n      \n        Title\n      \n    \n  \n\n\n\n\n\n\n\n\n\n\nDesigning Reliable Automation Pipelines for Persistent Game Worlds\n\n\n\nDevOps\n\nAutomation\n\nInfrastructure\n\nSystems Design\n\nReliability Engineering\n\n\n\nThis post presents the reasoning process and technical decisions that led to the creation of a reliable backup and automation workflow for persistent game servers, including a real use case related to maintaining stable Minecraft sessions at home.\n\n\n\n\n\nDecember 4, 2025\n\n16 min\n\n\n\n\n\n\n\n\n\n\n\nStep by step guide on how to ruin your company and your team with AI\n\n\n\nBehavioral Analysis\n\nArtificial Intelligence\n\nEthics\n\nManagement\n\n\n\nThis post aims to apply psychology concepts to address a sensitive topic for those who are limited by the use of generative artificial intelligence tools in the professional environment, acting as a direct attack on the intellect, raising questions and seeking plausible solutions.\n\n\n\n\n\nFebruary 12, 2025\n\n7 min\n\n\n\n\nNo matching items"
   },
   {
     "objectID": "posts/reliable-automation-pipelines-persistent-game-worlds/index.html",
@@ -105,18 +112,32 @@
     "text": "Revision history\n\nNovember 5, 2026: Added Horizon (Rust) support to the reference implementation (PR #2, PR #3): server layer (utils/server.sh) in the excerpts, Horizon image and compose file, Horizon setup and the in-game stop watcher.\nOctober 22, 2026: Updated for the reliability and security release of the reference implementation (PR #1): new code excerpts, credential handling, graceful shutdown, consistent snapshots, Java 25 image and CI.\nDecember 4, 2025: First published."
   },
   {
-    "objectID": "posts/index.html",
-    "href": "posts/index.html",
-    "title": "Posts",
-    "section": "",
-    "text": "Order By\n      Default\n      \n        Date - Oldest\n      \n      \n        Date - Newest\n      \n      \n        Title\n      \n    \n  \n\n\n\n\n\n\n\n\n\n\nDesigning Reliable Automation Pipelines for Persistent Game Worlds\n\n\n\nDevOps\n\nAutomation\n\nInfrastructure\n\nSystems Design\n\nReliability Engineering\n\n\n\nThis post presents the reasoning process and technical decisions that led to the creation of a reliable backup and automation workflow for persistent game servers, including a real use case related to maintaining stable Minecraft sessions at home.\n\n\n\n\n\nDecember 4, 2025\n\n16 min\n\n\n\n\n\n\n\n\n\n\n\nStep by step guide on how to ruin your company and your team with AI\n\n\n\nBehavioral Analysis\n\nArtificial Intelligence\n\nEthics\n\nManagement\n\n\n\nThis post aims to apply psychology concepts to address a sensitive topic for those who are limited by the use of generative artificial intelligence tools in the professional environment, acting as a direct attack on the intellect, raising questions and seeking plausible solutions.\n\n\n\n\n\nFebruary 12, 2025\n\n7 min\n\n\n\n\nNo matching items"
+    "objectID": "projects/minecraft-backup/index.html#overview",
+    "href": "projects/minecraft-backup/index.html#overview",
+    "title": "Minecraft Backup",
+    "section": "Overview",
+    "text": "Overview\nMinecraft Backup wraps a Minecraft server with a custom entrypoint that treats the world folder as a Git repository. It ships two images: one built on the official itzg/minecraft-server Java image, and one running Horizon, the community rewrite of Minecraft 26.3 in Rust. The world is restored from GitHub when the container starts, committed and pushed at a fixed interval while people play, and backed up one last time after the server stops cleanly, so a world can always be recovered, moved to another machine or rolled back to an earlier commit.\n\nPeriodic backups: a Git commit every PERIODIC_INTERVAL minutes, created only when something changed.\nConsistent snapshots: automatic saving is paused (save-off / save-all flush) while files are staged.\nGraceful shutdown: the server stops first, then the final backup is committed and pushed.\nSafe credentials: the GitHub token stays in memory, never in the remote URL, the repository config or the logs.\nAny Git remote: GitHub by default, or GitLab, Gitea or a bare repository through GIT_REMOTE_URL.\nJava or Horizon (Rust): both servers use the vanilla world format, so the same backup repository can move from one to the other.\nCompatible with the official image: every itzg/minecraft-server variable still works on the Java image."
   },
   {
-    "objectID": "achievements/index.html",
-    "href": "achievements/index.html",
-    "title": "Achievements",
-    "section": "",
-    "text": "Notice\n          \n        \n        \n          This blog is a work in progress. Follow me on LinkedIn for updates.\n        \n      \n    \n\n\n\n\n   \n    \n    \n      Order By\n      Default\n      \n        Date - Oldest\n      \n      \n        Date - Newest\n      \n      \n        Title\n      \n    \n  \n\n\n\n\nNo matching items"
+    "objectID": "projects/minecraft-backup/index.html#quick-start",
+    "href": "projects/minecraft-backup/index.html#quick-start",
+    "title": "Minecraft Backup",
+    "section": "Quick start",
+    "text": "Quick start\ngit clone https://github.com/danieltorquatof/minecraft-backup.git\ncd minecraft-backup\ncp .env.example .env   # set GITHUB_USER, GITHUB_TOKEN and REPO_NAME\ndocker compose up -d --build\nFor Horizon, prepare the Minecraft 26.3 game files from your own copy of the game with the Horizon launcher, then:\ncp .env.horizon.example .env   # backup variables + HORIZON_EULA and HORIZON_RESOURCES_DIR\ndocker compose -f docker-compose.horizon.yml up -d --build\nThe README covers the token permissions, every variable, the Horizon setup and how to restore an older backup."
+  },
+  {
+    "objectID": "projects/minecraft-backup/index.html#updates",
+    "href": "projects/minecraft-backup/index.html#updates",
+    "title": "Minecraft Backup",
+    "section": "Updates",
+    "text": "Updates\n\n\n\nDate\nUpdate\n\n\n\n\n2026-11-05\nHorizon (Rust) support (PR #2, PR #3): a second image runs a pinned, checksum-verified Horizon release with the same Git backups. Console commands go through Horizon’s local control API instead of RCON, the world name and game files are set up on start, and stopping the game from inside (/stop) now ends the container with a final backup, as on the Java server. CI builds both images and smoke-tests Horizon.\n\n\n2026-10-22\nReliability and security release (PR #1): backup commits no longer fail silently, graceful shutdown before the final backup, token removed from remote URLs and logs, consistent snapshots with backup locking, safer handling of empty or diverged remotes, RCON no longer published, Java 25 base image and CI (ShellCheck, Hadolint, compose validation, image build).\n\n\n2025-12-04\nInitial release: periodic Git backups to GitHub, restore on startup and backup on shutdown."
+  },
+  {
+    "objectID": "projects/minecraft-backup/index.html#write-ups",
+    "href": "projects/minecraft-backup/index.html#write-ups",
+    "title": "Minecraft Backup",
+    "section": "Write-ups",
+    "text": "Write-ups\n\n\n\n\n\nDesigning Reliable Automation Pipelines for Persistent Game Worlds\n\n\nA practical exploration of reasoning, architecture and stable backup mechanisms\n\n\nThis post presents the reasoning process and technical decisions that led to the creation of a reliable backup and automation workflow for persistent game servers, including a real use case related to maintaining stable Minecraft sessions at home.\n\n\n\n\n\nDecember 4, 2025\n\n\n\n\n\nNo matching items"
   },
   {
     "objectID": "aboutMe/resume.html",
@@ -126,18 +147,11 @@
     "text": "Senior Full-Stack Engineer & Data Scientist\n\n\n\n\nOverview\nResearch & Development Engineer with experience in software development, data science, and machine learning. As a Senior Full-Stack Engineer, I integrate Front-End and Back-End technologies to develop innovative and efficient solutions. Passionate about data-driven insights and AI, I continuously seek to enhance systems through research, optimization, and cutting-edge technology.\n\n\n\nExperience\n\n\n\nCo-Founder & CTO\nGrupo Torquato · Self-employed\nFebruary 2026 - Present · 10 months\nSão Paulo, Brazil · Remote\n\n\nCo-Founder & R&D Engineer\nAxios Insights · Self-employed\nAugust 2025 - Present · 1 year and 4 months\nRemote\n\n\nFounder & CEO\nSpikey Studio · Self-employed\nMarch 2020 - Present · 6 years and 9 months\nRemote\n\n\nTech Lead\nVT Creative Studio · Freelance\nFebruary 2026 - September 2026 · 8 months\nSão Paulo, Brazil · Remote\n\n\nArgus Solutions\nFull-time · 1 year and 5 months\nPiracicaba, São Paulo, Brazil · Remote\n\nSenior Full-Stack Engineer & Data Scientist\nJanuary 2025 - November 2025 · 11 months\n\n\nSenior Full-Stack Developer\nJuly 2024 - January 2025 · 7 months\n\n\n\nMid-level Full-Stack Developer\nGuild Market · Freelance\nJune 2024 - July 2024 · 2 months\nMacaé, Rio de Janeiro, Brazil · Remote\n\n\nEMARTIM\nFull-time · 1 year and 10 months\nPiracicaba, São Paulo, Brazil · Remote\n\nJunior Full-Stack & Mobile Developer\nDecember 2022 - March 2024 · 1 year and 4 months\n\n\nJunior Mobile Developer\nJune 2022 - December 2022 · 7 months\n\n\n\nMid-level Mobile Developer & Junior 3D Modeler\nWoodyverso · Freelance\nOctober 2022 - February 2023 · 5 months\nMacaé, Rio de Janeiro, Brazil · Remote\n\n\nIntern Front-End Developer\nGBM Tech & Control · Internship\nFebruary 2022 - May 2022 · 4 months\nSantos, São Paulo, Brazil · Hybrid\n\n\n\n\n\n\n\n\n\n\nEducation\n\n\n\nBachelor of Engineering in Mechatronics\n\nUnicesumar,\nMay 2024 - Current\n\n\n\nAssociate Degree in Internet Systems\n\nUnicesumar,\nJanuary 2022 - November 2024\n\n\n\nTechnical Degree in Systems Development\n\nEscola Técnica Estadual de Peruíbe (ETEC),\nJanuary 2019 - December 2021\n\n\n\n\n\nAnd more: Licenses and certificates\n\n\nSee also my Skills\n\n\n\n\nMain Languages\n\n\n\nPython\nJulia\nR\nDart\nC#\nPHP\nSQL\n\n\n\n\nNoSQL\nKotlin\nJava\nJavaScript\nTypeScript\nHTML\nCSS\n\n\n\n\n\n\nSome Frameworks and Technologies\n\n\n\nAWS\nFlutter\nReact\nReact Native\nExpress.js\nCodeIgniter\nFastAPI\nASP.NET\n\n\n\n\nMySQL\nMariaDB\nMongoDB\nNode.js\nShiny\nOxygen.jl\nJupyter\n\n\n\n\n\n\nGame Engines\n\n\n\nUnity\nGodot"
   },
   {
-    "objectID": "index.html#highlights",
-    "href": "index.html#highlights",
-    "title": "DT’s Blog",
-    "section": "Highlights",
-    "text": "Highlights\n\nThis is a collection of my thoughts, projects, articles, and achievements.\n\n\n\n\n      \n        \n          \n            \n          \n          \n            Notice\n          \n        \n        \n          This blog is a work in progress. Follow me on LinkedIn for updates."
-  },
-  {
-    "objectID": "index.html#feed",
-    "href": "index.html#feed",
-    "title": "DT’s Blog",
-    "section": "Feed",
-    "text": "Feed\n\nThis is a feed of my latest posts, projects, articles, and achievements.\n\n\n\n\n\n\n\n\n\n\n\nDesigning Reliable Automation Pipelines for Persistent Game Worlds\n\n\nA practical exploration of reasoning, architecture and stable backup mechanisms\n\n\n\nDevOps\n\nAutomation\n\nInfrastructure\n\nSystems Design\n\nReliability Engineering\n\n\n\nThis post presents the reasoning process and technical decisions that led to the creation of a reliable backup and automation workflow for persistent game servers, including a real use case related to maintaining stable Minecraft sessions at home.\n\n\n\n\n\nDecember 4, 2025\n\n\n\n\n\n\n\n\n\n\n\n\nMinecraft Backup\n\n\nAutomated, Git-versioned backups for Minecraft servers in Docker, on the Java server or Horizon (Rust)\n\n\n\nDevOps\n\nDocker\n\nAutomation\n\nBackup\n\nMinecraft\n\nHorizon\n\n\n\nDocker images for the official Java server and Horizon, the Rust rewrite of Minecraft, that restore the world on startup and back it up to GitHub automatically.\n\n\n\n\n\nDecember 4, 2025\n\n\n\n\n\n\n\n\n\n\n\n\nStep by step guide on how to ruin your company and your team with AI\n\n\nA roadmap to the quickest way to lose your team’s trust\n\n\n\nBehavioral Analysis\n\nArtificial Intelligence\n\nEthics\n\nManagement\n\n\n\nThis post aims to apply psychology concepts to address a sensitive topic for those who are limited by the use of generative artificial intelligence tools in the professional environment, acting as a direct attack on the intellect, raising questions and seeking plausible solutions.\n\n\n\n\n\nFebruary 12, 2025\n\n\n\n\n\nNo matching items"
+    "objectID": "projects/index.html",
+    "href": "projects/index.html",
+    "title": "Projects",
+    "section": "",
+    "text": "Notice\n          \n        \n        \n          This blog is a work in progress. Follow me on LinkedIn for updates.\n        \n      \n    \n\n\n\n\n   \n    \n    \n      Order By\n      Default\n      \n        Updated - Oldest\n      \n      \n        Updated - Newest\n      \n      \n        Started - Oldest\n      \n      \n        Started - Newest\n      \n      \n        Title\n      \n    \n  \n    \n      \n      \n    \n\n\n\n\n\n  \n    \n      \n        \n        maintained\n        \n\n        Minecraft Backup\n\n        \n        Automated, Git-versioned backups for Minecraft servers in Docker, on the Java server or Horizon (Rust)\n        \n\n        \n        \n          \n          DevOps\n          \n          Docker\n          \n          Automation\n          \n          Backup\n          \n          Minecraft\n          \n          Horizon\n          \n        \n        \n\n        \n        Docker images for the official Java server and Horizon, the Rust rewrite of Minecraft, that restore the world on startup and back it up to GitHub automatically.\n        \n\n        \n          \n          Started December 4, 2025\n          \n          \n          Updated November 5, 2026\n          \n        \n      \n    \n  \n\n\n\nNo matching items"
   },
   {
     "objectID": "posts/how-to-ruin-your-company-and-team-with-ai/index.html",
@@ -152,19 +166,5 @@
     "title": "Step by step guide on how to ruin your company and your team with AI",
     "section": "Footnotes",
     "text": "Footnotes\n\n\nGenerative Artificial Intelligence↩︎\nSee more at Steindl et al. (2015)↩︎\nSee more at Cherry (2023)↩︎\nGenerative Artificial Intelligence↩︎\nGenerative Artificial Intelligence↩︎\nGenerative Artificial Intelligence↩︎\nGenerative Artificial Intelligence↩︎\nSee more at SKITKA et al. (1999)↩︎\nSee more at IBM (2023)↩︎\nGenerative Artificial Intelligence↩︎\nWhich may result in an incorrect weight distribution↩︎\nGenerative artificial intelligences↩︎\nSee more at Bergmann (2024)↩︎\nGenerative Artificial Intelligence↩︎\nGenerative Artificial Intelligence↩︎"
-  },
-  {
-    "objectID": "projects/index.html",
-    "href": "projects/index.html",
-    "title": "Projects",
-    "section": "",
-    "text": "Notice\n          \n        \n        \n          This blog is a work in progress. Follow me on LinkedIn for updates.\n        \n      \n    \n\n\n\n\n   \n    \n    \n      Order By\n      Default\n      \n        Updated - Oldest\n      \n      \n        Updated - Newest\n      \n      \n        Started - Oldest\n      \n      \n        Started - Newest\n      \n      \n        Title\n      \n    \n  \n    \n      \n      \n    \n\n\n\n\n\n  \n    \n      \n        \n        maintained\n        \n\n        Minecraft Backup\n\n        \n        Automated, Git-versioned backups for Minecraft servers in Docker, on the Java server or Horizon (Rust)\n        \n\n        \n        \n          \n          DevOps\n          \n          Docker\n          \n          Automation\n          \n          Backup\n          \n          Minecraft\n          \n          Horizon\n          \n        \n        \n\n        \n        Docker images for the official Java server and Horizon, the Rust rewrite of Minecraft, that restore the world on startup and back it up to GitHub automatically.\n        \n\n        \n          \n          Started December 4, 2025\n          \n          \n          Updated November 5, 2026\n          \n        \n      \n    \n  \n\n\n\nNo matching items"
-  },
-  {
-    "objectID": "articles/index.html",
-    "href": "articles/index.html",
-    "title": "Articles",
-    "section": "",
-    "text": "Notice\n          \n        \n        \n          This blog is a work in progress. Follow me on LinkedIn for updates.\n        \n      \n    \n\n\n\n\n   \n    \n    \n      Order By\n      Default\n      \n        Date - Oldest\n      \n      \n        Date - Newest\n      \n      \n        Title\n      \n    \n  \n\n\n\n\nNo matching items"
   }
 ]

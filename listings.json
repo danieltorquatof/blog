@@ -1,19 +1,6 @@
 [
   {
-    "listing": "/projects/minecraft-backup/index.html",
-    "items": [
-      "/posts/reliable-automation-pipelines-persistent-game-worlds/index.html"
-    ]
-  },
-  {
-    "listing": "/posts/index.html",
-    "items": [
-      "/posts/reliable-automation-pipelines-persistent-game-worlds/index.html",
-      "/posts/how-to-ruin-your-company-and-team-with-ai/index.html"
-    ]
-  },
-  {
-    "listing": "/achievements/index.html",
+    "listing": "/articles/index.html",
     "items": []
   },
   {
@@ -25,13 +12,26 @@
     ]
   },
   {
+    "listing": "/achievements/index.html",
+    "items": []
+  },
+  {
+    "listing": "/posts/index.html",
+    "items": [
+      "/posts/reliable-automation-pipelines-persistent-game-worlds/index.html",
+      "/posts/how-to-ruin-your-company-and-team-with-ai/index.html"
+    ]
+  },
+  {
+    "listing": "/projects/minecraft-backup/index.html",
+    "items": [
+      "/posts/reliable-automation-pipelines-persistent-game-worlds/index.html"
+    ]
+  },
+  {
     "listing": "/projects/index.html",
     "items": [
       "/projects/minecraft-backup/index.html"
     ]
-  },
-  {
-    "listing": "/articles/index.html",
-    "items": []
   }
 ]
