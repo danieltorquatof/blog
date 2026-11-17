@@ -7,7 +7,8 @@
   BreadcrumbList)
 - UUID short links: a page with `uuid: <id>` in its front matter also answers at
   /<section>/<id>/, a redirect page pointing to its keyword URL (/<section>/<slug>/)
-- Removes the empty files Quarto still writes for draft pages (draft-mode: gone)
+- Removes the empty files Quarto still writes for draft pages (draft-mode: gone), except under
+  `quarto preview`, which crashes when an output it rendered disappears
 
 Safe to run repeatedly (quarto preview re-runs it after each incremental render).
 """
@@ -448,8 +449,25 @@ def updateSitemap(context: SeoContext) -> None:
         sitemap.write_text(updated, encoding="utf-8")
 
 
+def isPreviewRender() -> bool:
+    """True when this script was started by `quarto preview`.
+
+    The preview server writes its PID to .quarto/preview/lock before rendering and then reads back
+    every output file it rendered, so deleting draft outputs there crashes it.
+    """
+    try:
+        previewPid: int = int((PROJECT_DIR / ".quarto" / "preview" / "lock").read_text().strip())
+    except (OSError, ValueError):
+        return False
+
+    return previewPid == os.getppid()
+
+
 def removeDraftOutputs() -> int:
     removed: int = 0
+
+    if isPreviewRender():
+        return removed
 
     for page in discoverPages():
         output: Path = OUTPUT_DIR / page.outputPath
