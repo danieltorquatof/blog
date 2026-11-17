@@ -30,7 +30,7 @@ ul.task-list li input[type="checkbox"] {
 </style>
 
 
-<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
 <script src="site_libs/quarto-nav/headroom.min.js"></script>
 <script src="site_libs/clipboard/clipboard.min.js"></script>
 <script src="site_libs/quarto-search/autocomplete.umd.js"></script>
@@ -51,9 +51,9 @@ ul.task-list li input[type="checkbox"] {
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6a2a5a5fac19b8b735b008f7a29a809b.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="site_libs/bootstrap/bootstrap-dark-eb725d6b228dd80de2a28e44f3ab7fad.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
-<link href="site_libs/bootstrap/bootstrap-6a2a5a5fac19b8b735b008f7a29a809b.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-ec80a17a85d6a8798dfb477aad9c7394.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-dark-fb87b5cc84404828a0cf4f2709024f03.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-ec80a17a85d6a8798dfb477aad9c7394.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -80,6 +80,34 @@ ul.task-list li input[type="checkbox"] {
   }
 }</script>
 <script>
+
+  window.document.addEventListener("DOMContentLoaded", function (_event) {
+    const listingTargetEl = window.document.querySelector('#listing-highlights-list .list');
+    if (!listingTargetEl) {
+      // No listing discovered, do not attach.
+      return; 
+    }
+
+    const options = {
+      valueNames: ['listing-title','listing-subtitle','listing-categories','listing-description','listing-date',{ data: ['index'] },{ data: ['categories'] },{ data: ['listing-date-sort'] },{ data: ['listing-file-modified-sort'] }],
+      
+      searchColumns: ["listing-title","listing-author","listing-date","listing-image","listing-description"],
+    };
+
+    window['quarto-listings'] = window['quarto-listings'] || {};
+    window['quarto-listings']['listing-highlights-list'] = new List('listing-highlights-list', options);
+
+    if (window['quarto-listing-loaded']) {
+      window['quarto-listing-loaded']();
+    }
+  });
+
+  window.addEventListener('hashchange',() => {
+    if (window['quarto-listing-loaded']) {
+      window['quarto-listing-loaded']();
+    }
+  })
+  
 
   window.document.addEventListener("DOMContentLoaded", function (_event) {
     const listingTargetEl = window.document.querySelector('#listing-feed-list .list');
@@ -123,9 +151,6 @@ ul.task-list li input[type="checkbox"] {
     }
   });
 </script>
-<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
-
-<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
   <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js" type="text/javascript"></script>
@@ -485,8 +510,7 @@ window.Quarto = {
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>Be everything you can be.<br>
-Invent, improve and implement.</p>
+<p>Be everything you can be. Invent, improve and implement.</p>
 </div>
 </div>
 <section id="highlights" class="level2">
@@ -494,24 +518,42 @@ Invent, improve and implement.</p>
 <blockquote class="blockquote">
 <p>This is a collection of my thoughts, projects, articles, and achievements.</p>
 </blockquote>
-<div id="e290808e" class="cell" data-execution_count="2">
-<div class="cell-output cell-output-display" data-execution_count="2">
-
-      <div class="callout callout-style-default callout-caution callout-titled">
-        <div class="callout-header d-flex align-content-center">
-          <div class="callout-icon-container">
-            <i class="callout-icon"></i>
-          </div>
-          <div class="callout-title-container flex-fill">
-            Notice
-          </div>
-        </div>
-        <div class="callout-body-container callout-body">
-          <p>This blog is a work in progress. Follow me on <a href="https://www.linkedin.com/in/danieltorquatof/" target="_blank" data-original-href="https://www.linkedin.com/in/danieltorquatof/">LinkedIn</a> for updates.</p>
-        </div>
-      </div>
-    
+<div id="listing-highlights-list" class="quarto-listing quarto-listing-container-grid">
+<div class="list grid quarto-listing-cols-1">
+<div class="g-col-1" data-index="0" data-categories="R2FtZSUyMERldmVsb3BtZW50JTJDU29mdHdhcmUlMjBBcmNoaXRlY3R1cmUlMkNTeXN0ZW1zJTIwRGVzaWduJTJDRGVzaWduJTIwUGF0dGVybnM=" data-listing-date-sort="1794873600000" data-listing-file-modified-sort="1794950290000" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="22" data-listing-word-count-sort="4349">
+<a href="./articles/abstracting-executors-modular-game-loops/index.html" class="quarto-grid-link">
+<div class="quarto-grid-item card h-100 card-left">
+<div class="card-body post-contents">
+<h5 class="no-anchor card-title listing-title">
+Abstracting and Generalising Executors for Modular Game Loops
+</h5>
+<div class="card-subtitle listing-subtitle">
+How small units of intention, composed into sequences, turn a game loop into something you assemble instead of rewrite
 </div>
+<div class="listing-categories">
+
+<div class="listing-category" onclick="window.quartoListingCategory('R2FtZSUyMERldmVsb3BtZW50'); return false;">Game Development</div>
+
+<div class="listing-category" onclick="window.quartoListingCategory('U29mdHdhcmUlMjBBcmNoaXRlY3R1cmU='); return false;">Software Architecture</div>
+
+<div class="listing-category" onclick="window.quartoListingCategory('U3lzdGVtcyUyMERlc2lnbg=='); return false;">Systems Design</div>
+
+<div class="listing-category" onclick="window.quartoListingCategory('RGVzaWduJTIwUGF0dGVybnM='); return false;">Design Patterns</div>
+
+</div>
+<div class="card-text listing-description delink">
+<p>An engine-agnostic look at executors, sequencers and event-driven flows that make game loops modular, plus a classified way to organise the project around them.</p>
+</div>
+<div class="card-attribution card-text-small end">
+<div class="listing-date">
+November 17, 2026
+</div>
+</div>
+</div>
+</div></a>
+</div>
+</div>
+<div class="listing-no-matching d-none">No matching items</div>
 </div>
 <hr>
 </section>
@@ -522,7 +564,43 @@ Invent, improve and implement.</p>
 </blockquote>
 <div id="listing-feed-list" class="quarto-listing quarto-listing-container-default">
 <div class="list quarto-listing-default">
-<div class="quarto-post image-right" data-index="0" data-categories="RGV2T3BzJTJDQXV0b21hdGlvbiUyQ0luZnJhc3RydWN0dXJlJTJDU3lzdGVtcyUyMERlc2lnbiUyQ1JlbGlhYmlsaXR5JTIwRW5naW5lZXJpbmc=" data-listing-date-sort="1764806400000" data-listing-file-modified-sort="1793852238000" data-listing-date-modified-sort="1793836800000" data-listing-reading-time-sort="16" data-listing-word-count-sort="3155">
+<div class="quarto-post image-right" data-index="0" data-categories="R2FtZSUyMERldmVsb3BtZW50JTJDU29mdHdhcmUlMjBBcmNoaXRlY3R1cmUlMkNTeXN0ZW1zJTIwRGVzaWduJTJDRGVzaWduJTIwUGF0dGVybnM=" data-listing-date-sort="1794873600000" data-listing-file-modified-sort="1794950290000" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="22" data-listing-word-count-sort="4349">
+<div class="thumbnail"><a href="./articles/abstracting-executors-modular-game-loops/index.html" class="no-external">
+
+<div class="listing-item-img-placeholder card-img-top" >&nbsp;</div>
+
+</a></div>
+<div class="body">
+<h3 class="no-anchor listing-title">
+<a href="./articles/abstracting-executors-modular-game-loops/index.html" class="no-external">Abstracting and Generalising Executors for Modular Game Loops</a>
+</h3>
+<div class="listing-subtitle">
+<a href="./articles/abstracting-executors-modular-game-loops/index.html" class="no-external">How small units of intention, composed into sequences, turn a game loop into something you assemble instead of rewrite</a>
+</div>
+<div class="listing-categories">
+
+<div class="listing-category" onclick="window.quartoListingCategory('R2FtZSUyMERldmVsb3BtZW50'); return false;">Game Development</div>
+
+<div class="listing-category" onclick="window.quartoListingCategory('U29mdHdhcmUlMjBBcmNoaXRlY3R1cmU='); return false;">Software Architecture</div>
+
+<div class="listing-category" onclick="window.quartoListingCategory('U3lzdGVtcyUyMERlc2lnbg=='); return false;">Systems Design</div>
+
+<div class="listing-category" onclick="window.quartoListingCategory('RGVzaWduJTIwUGF0dGVybnM='); return false;">Design Patterns</div>
+
+</div>
+<div class="delink listing-description"><a href="./articles/abstracting-executors-modular-game-loops/index.html" class="no-external">
+<p>An engine-agnostic look at executors, sequencers and event-driven flows that make game loops modular, plus a classified way to organise the project around them.</p>
+</a></div>
+</div>
+<div class="metadata">
+<a href="./articles/abstracting-executors-modular-game-loops/index.html" class="no-external">
+<div class="listing-date">
+November 17, 2026
+</div>
+</a>
+</div>
+</div>
+<div class="quarto-post image-right" data-index="1" data-categories="RGV2T3BzJTJDQXV0b21hdGlvbiUyQ0luZnJhc3RydWN0dXJlJTJDU3lzdGVtcyUyMERlc2lnbiUyQ1JlbGlhYmlsaXR5JTIwRW5naW5lZXJpbmc=" data-listing-date-sort="1764806400000" data-listing-file-modified-sort="1793852238000" data-listing-date-modified-sort="1793836800000" data-listing-reading-time-sort="16" data-listing-word-count-sort="3155">
 <div class="thumbnail"><a href="./posts/reliable-automation-pipelines-persistent-game-worlds/index.html" class="no-external">
 
 <div class="listing-item-img-placeholder card-img-top" >&nbsp;</div>
@@ -560,7 +638,7 @@ December 4, 2025
 </a>
 </div>
 </div>
-<div class="quarto-post image-right" data-index="1" data-categories="RGV2T3BzJTJDRG9ja2VyJTJDQXV0b21hdGlvbiUyQ0JhY2t1cCUyQ01pbmVjcmFmdCUyQ0hvcml6b24=" data-listing-date-sort="1764806400000" data-listing-file-modified-sort="1793852238000" data-listing-date-modified-sort="1793836800000" data-listing-reading-time-sort="3" data-listing-word-count-sort="554">
+<div class="quarto-post image-right" data-index="2" data-categories="RGV2T3BzJTJDRG9ja2VyJTJDQXV0b21hdGlvbiUyQ0JhY2t1cCUyQ01pbmVjcmFmdCUyQ0hvcml6b24=" data-listing-date-sort="1764806400000" data-listing-file-modified-sort="1793852238000" data-listing-date-modified-sort="1793836800000" data-listing-reading-time-sort="3" data-listing-word-count-sort="554">
 <div class="thumbnail"><a href="./projects/minecraft-backup/index.html" class="no-external">
 
 <div class="listing-item-img-placeholder card-img-top" >&nbsp;</div>
@@ -600,7 +678,7 @@ December 4, 2025
 </a>
 </div>
 </div>
-<div class="quarto-post image-right" data-index="2" data-categories="QmVoYXZpb3JhbCUyMEFuYWx5c2lzJTJDQXJ0aWZpY2lhbCUyMEludGVsbGlnZW5jZSUyQ0V0aGljcyUyQ01hbmFnZW1lbnQ=" data-listing-date-sort="1739318400000" data-listing-file-modified-sort="1793301751000" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="7" data-listing-word-count-sort="1273">
+<div class="quarto-post image-right" data-index="3" data-categories="QmVoYXZpb3JhbCUyMEFuYWx5c2lzJTJDQXJ0aWZpY2lhbCUyMEludGVsbGlnZW5jZSUyQ0V0aGljcyUyQ01hbmFnZW1lbnQ=" data-listing-date-sort="1739318400000" data-listing-file-modified-sort="1793301751000" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="7" data-listing-word-count-sort="1273">
 <div class="thumbnail"><a href="./posts/how-to-ruin-your-company-and-team-with-ai/index.html" class="no-external">
 
 <div class="listing-item-img-placeholder card-img-top" >&nbsp;</div>

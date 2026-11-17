@@ -17,7 +17,741 @@
 <width>144</width>
 </image>
 <generator>quarto-1.10.19</generator>
-<lastBuildDate>Thu, 04 Dec 2025 00:00:00 GMT</lastBuildDate>
+<lastBuildDate>Tue, 17 Nov 2026 00:00:00 GMT</lastBuildDate>
+<item>
+  <title>Abstracting and Generalising Executors for Modular Game Loops</title>
+  <dc:creator>Daniel Torquato</dc:creator>
+  <link>https://blog.danieltorquatof.spikeystudio.com/articles/abstracting-executors-modular-game-loops/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<hr>
+<p>At the gameplay level, a game is an ordered set of moments: the player walks a few steps, looks around, approaches a door, a scene plays, something appears in the dark. Each moment has a precondition, a completion condition and side effects on the world. When those moments are scripted directly against each other, the flow is spread across flags, timers and callbacks in many places, and any change in order or content becomes a refactor.</p>
+<p>This article describes an architecture that addresses this by <strong>treating every moment of the game as an executor</strong>: a unit with a uniform lifecycle and an explicit completion event, orchestrated by generic components that know nothing about what each executor does. It covers:</p>
+<ul>
+<li>The executor contract and its lifecycle;</li>
+<li>Composition through sequencers and the capabilities a child can expose;</li>
+<li>Aggregation, readiness barriers and interactions as event sources;</li>
+<li>Data-driven variation;</li>
+<li>Extensions of the model (parallelism, selection, cancellation, shared context);</li>
+<li>A classified segmentation of the project that keeps these boundaries intact.</li>
+</ul>
+<p>The examples come from a horror game, but nothing here depends on a genre, an engine or a programming language. Every flow is described as a diagram so that it can be translated to any toolset.</p>
+<hr>
+<section id="the-problem-with-hardcoded-game-loops" class="level2">
+<h2 class="anchored" data-anchor-id="the-problem-with-hardcoded-game-loops">The Problem with Hardcoded Game Loops</h2>
+<p>Before talking about the solution, it is worth visualising the problem. The most common way to script a sequence of gameplay moments is to let each piece know what comes next.</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart LR;
+  subgraph CHAIN[Direct calls]
+    direction TB
+    A[Player script]
+    B[Tutorial script]
+    C[Door script]
+    D[Cutscene script]
+    E[Encounter script]
+
+    A -- "sets walked" --&gt; B
+    B -- "enables" --&gt; C
+    C -- "on open, plays" --&gt; D
+    D -- "on end, spawns" --&gt; E
+  end
+
+  F[("Shared flags&lt;br/&gt;read and written&lt;br/&gt;by every script")]
+
+  CHAIN &lt;-. "hidden coupling" .-&gt; F
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>Every arrow in this diagram is a dependency. The door knows about the cutscene, the cutscene knows about the encounter, and every script reads or writes flags that others left behind. The flow exists, but it exists <em>implicitly</em>, spread across the pieces, and nobody can read it in a single place.</p>
+<p>The consequences are predictable:</p>
+<ul>
+<li>Reordering two moments requires editing every script around them;</li>
+<li>Reusing a moment in another level drags its neighbours along;</li>
+<li>A missing object halfway through silently freezes the whole sequence;</li>
+<li>Testing one moment in isolation is nearly impossible.</li>
+</ul>
+<p>What we want is the opposite: pieces that know nothing about each other, and a flow that is described explicitly, in one place, by something whose only job is to run it.</p>
+<hr>
+</section>
+<section id="the-executor-the-smallest-unit-of-intention" class="level2">
+<h2 class="anchored" data-anchor-id="the-executor-the-smallest-unit-of-intention">The Executor: The Smallest Unit of Intention</h2>
+<p>An executor is anything that represents <em>one thing that must happen</em>: wait for the player to walk ten metres, play an animation, spawn a creature, wait until a light is switched off. What makes it an executor is not what it does, but the contract it follows:</p>
+<ol type="1">
+<li>It can be <strong>started</strong>;</li>
+<li>While running, it can <strong>update</strong> itself, every frame or every tick;</li>
+<li>At some point it decides it is done and <strong>announces that it has finished</strong>.</li>
+</ol>
+<p>That contract can be modelled as a tiny state machine:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">stateDiagram-v2
+  direction LR
+  [*] --&gt; Waiting
+  Waiting --&gt; Started: start
+  Started --&gt; Finished: condition met
+  Finished --&gt; [*]: emits finished
+
+  Started : Started
+  Started : update every tick
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>Three states, two transitions that matter. The executor does not know who started it, and it does not know what comes after it. It only knows its own completion condition.</p>
+<section id="lifecycle-hooks" class="level3">
+<h3 class="anchored" data-anchor-id="lifecycle-hooks">Lifecycle hooks</h3>
+<p>To avoid every executor reimplementing the same state handling, the base executor owns the state machine and exposes only <em>hooks</em> for the specific behaviour, a classic application of the Template Method pattern<sup>1</sup>:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"sequence": {"mirrorActors": false, "messageMargin": 28, "boxMargin": 6}}}%%
+sequenceDiagram
+  participant O as Orchestrator
+  participant B as Base executor
+  participant C as Concrete executor
+
+  O-&gt;&gt;B: start
+  B-&gt;&gt;B: state = Started
+  B-&gt;&gt;C: on start
+  Note right of C: prepare, show hints,&lt;br/&gt;spawn things
+
+  loop every tick while Started
+    B-&gt;&gt;C: on update
+    C-&gt;&gt;C: measure progress
+  end
+
+  C-&gt;&gt;B: finish (condition met)
+  B-&gt;&gt;B: state = Finished
+  B-&gt;&gt;C: on finish
+  Note right of C: clean up what it created
+  B--&gt;&gt;O: finished event
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>The concrete executor never touches the state directly. It prepares what it needs when it starts, measures its own progress while running, calls <em>finish</em> when its condition is met and cleans up afterwards. Everything else is guaranteed by the base.</p>
+<p>A few examples of how different moments fit the same shape:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Executor</th>
+<th>On start</th>
+<th>On update</th>
+<th>Completion condition</th>
+<th>On finish</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Walk</td>
+<td>Show a movement hint</td>
+<td>Accumulate horizontal distance travelled</td>
+<td>Distance ≥ N metres</td>
+<td>Remove the hint</td>
+</tr>
+<tr class="even">
+<td>Look around</td>
+<td>Show a camera hint</td>
+<td>Accumulate absolute rotation</td>
+<td>Rotation ≥ N degrees</td>
+<td>Remove the hint</td>
+</tr>
+<tr class="odd">
+<td>Get close</td>
+<td>Place a marker on a target</td>
+<td>Measure distance to the target</td>
+<td>Distance ≤ N metres</td>
+<td>Remove the marker</td>
+</tr>
+<tr class="even">
+<td>Cutscene</td>
+<td>Lock controls, play animation</td>
+<td>Nothing</td>
+<td>Animation finished event</td>
+<td>Restore controls</td>
+</tr>
+</tbody>
+</table>
+<p>Notice that the last row has no update logic at all. Its completion comes from <em>another</em> event, which already hints at something important: executors can finish because of time, because of player progress or because something else in the world told them to.</p>
+<hr>
+</section>
+</section>
+<section id="fail-forward-executors-that-never-deadlock" class="level2">
+<h2 class="anchored" data-anchor-id="fail-forward-executors-that-never-deadlock">Fail Forward: Executors That Never Deadlock</h2>
+<p>Games run in messy environments. Objects get renamed, a target is removed from a level, an asset fails to load. In a hardcoded flow, any of these freezes the sequence forever, usually without an error.</p>
+<p>Executors can adopt a simple rule: <strong>if an executor cannot do its job, it finishes immediately</strong>.</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  A([start])
+  B{Can it run?}
+  C[Run on start hook]
+  D["Every tick: run on update&lt;br/&gt;until the condition is met"]
+  S[Skip and log it]
+  F(["Finish and emit finished"])
+
+  A --&gt; B
+  B -- Yes --&gt; C
+  C --&gt; D
+  D -- "condition met" --&gt; F
+  B -- No --&gt; S
+  D -. "dependency lost" .-&gt; S
+  S --&gt; F
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>The sequence always moves forward. A missing marker means the player does not see a hint, not that the game stops.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Fail forward or fail stop?
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Skipping is the right default for <em>presentation</em> (hints, markers, ambience). For moments that carry state the rest of the game depends on, such as giving the player a key, skipping silently only moves the bug further away. Make the choice explicit per executor and <strong>always log the skip</strong>, so a broken moment shows up in the logs instead of in a player’s review.</p>
+</div>
+</div>
+<hr>
+</section>
+<section id="the-sequencer-an-executor-of-executors" class="level2">
+<h2 class="anchored" data-anchor-id="the-sequencer-an-executor-of-executors">The Sequencer: An Executor of Executors</h2>
+<p>With a uniform contract in place, the orchestrator becomes almost boringly simple. A sequencer holds an ordered list of executors and runs them one after the other:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"sequence": {"mirrorActors": false, "messageMargin": 28, "boxMargin": 6}}}%%
+sequenceDiagram
+  participant SQ as Sequencer
+  participant E1 as Executor 1
+  participant E2 as Executor 2
+  participant E3 as Executor 3
+
+  SQ-&gt;&gt;E1: start
+  Note over E1: runs until its condition is met
+  E1--&gt;&gt;SQ: finished
+  SQ-&gt;&gt;E2: start
+  E2--&gt;&gt;SQ: finished
+  SQ-&gt;&gt;E3: start
+  E3--&gt;&gt;SQ: finished
+  Note over SQ: no executors left
+  SQ--&gt;&gt;SQ: emit finished
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>The sequencer subscribes to the <em>finished</em> event of the current executor once, starts it and waits. When the event arrives, it moves to the next one. When the list is over, it announces that <em>it</em> has finished.</p>
+<p>And that last detail is where the idea becomes powerful: <strong>a sequencer follows the same contract as an executor</strong>. It can be started and it announces when it is done. So a sequencer can be placed inside another sequencer, exactly like any other executor, which is the Composite pattern<sup>2</sup> applied to gameplay flow.</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  ROOT[Root sequencer]
+
+  subgraph T[Tutorial sequencer]
+    direction LR
+    T1[Walk] --&gt; T2[Look around] --&gt; T3[Get close to target] --&gt; T4[Cutscene]
+  end
+
+  subgraph N[Night sequencer]
+    direction LR
+    N1[Spawn a group and wait for all to leave] --&gt; N2[Spawn a single figure and wait]
+  end
+
+  subgraph F[Finale sequencer]
+    direction LR
+    F1[Lights out] --&gt; F2[Encounter] --&gt; F3[Ending cutscene]
+  end
+
+  ROOT --&gt; T
+  T -- finished --&gt; N
+  N -- finished --&gt; F
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>The whole game flow is now a <strong>tree you can read</strong>. Reordering the tutorial means moving two items in a list. Removing the finale for a demo build means removing one branch. Testing the night sequence means starting that sequencer directly, without playing the tutorial first.</p>
+<hr>
+</section>
+<section id="the-contract-is-the-interface-not-the-type" class="level2">
+<h2 class="anchored" data-anchor-id="the-contract-is-the-interface-not-the-type">The Contract Is the Interface, Not the Type</h2>
+<p>There is a subtle decision hidden in the previous section. The sequencer does not ask <em>“is this an executor?”</em>. It asks <em>“can this be started, and does it announce when it finishes?”</em>.</p>
+<p>That difference matters because it lets the sequencer orchestrate things that were never designed as executors. A creature that walks a path and announces when it reaches the end, an animation player that announces when a clip ends, a door that announces when it is opened: all of them can join a sequence, as long as they expose the two halves of the contract.</p>
+<p>It also gives the sequencer a natural vocabulary for three kinds of children:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart LR;
+  A[Next child]
+  B{Can it&lt;br/&gt;start?}
+  C{Announces&lt;br/&gt;finished?}
+  N["&lt;b&gt;Non-executor&lt;/b&gt;&lt;br/&gt;skip it"]
+  F["&lt;b&gt;Fire-and-forget&lt;/b&gt;&lt;br/&gt;start it, continue at once"]
+  W["&lt;b&gt;Blocking&lt;/b&gt;&lt;br/&gt;subscribe once, start it,&lt;br/&gt;wait for finished"]
+
+  A --&gt; B
+  B -- No --&gt; N
+  B -- Yes --&gt; C
+  C -- No --&gt; F
+  C -- Yes --&gt; W
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<ul>
+<li><strong>Blocking executors</strong> start and hold the sequence until they finish;</li>
+<li><strong>Fire-and-forget executors</strong> start and let the sequence continue at once, which is a cheap way of running things in parallel (an ambient sound, a flickering light);</li>
+<li><strong>Non-executors</strong> are ignored, so helpers and data can live next to the executors without breaking anything.</li>
+</ul>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Explicit beats implicit, eventually
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Checking capabilities at runtime is flexible and fast to prototype with. As the project grows, a formal contract (an interface, a protocol, a trait, whatever your language calls it) catches mistakes earlier, such as a misspelled event name that silently turns a blocking executor into a fire-and-forget one. A good middle ground is to keep the flexible check in the sequencer but log every child it skips or does not wait for.</p>
+</div>
+</div>
+<hr>
+</section>
+<section id="waiting-for-many-aggregating-executors" class="level2">
+<h2 class="anchored" data-anchor-id="waiting-for-many-aggregating-executors">Waiting for Many: Aggregating Executors</h2>
+<p>Some moments are not a single action but a group of them. Picture a scene where several figures walk past the player, one after another, and the moment is only over when <strong>every one of them</strong> has left.</p>
+<p>The executor that represents this moment is itself a small orchestrator: it spawns its children at an interval, counts how many finished and only finishes when both counts reach the target.</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart LR;
+  subgraph SPAWN[Spawning loop]
+    direction TB
+    S1([start])
+    S2["Spawn a child and&lt;br/&gt;subscribe to its finished"]
+    S3{All N&lt;br/&gt;spawned?}
+    S4["Wait the interval&lt;br/&gt;(stop if no longer Started)"]
+    S5([stop spawning])
+
+    S1 --&gt; S2
+    S2 --&gt; S3
+    S3 -- No --&gt; S4
+    S4 --&gt; S2
+    S3 -- Yes --&gt; S5
+  end
+
+  subgraph COUNT[On each child finished]
+    direction TB
+    C1([child finished])
+    C2[finished += 1]
+    C3{"spawned = N&lt;br/&gt;and&lt;br/&gt;finished = N?"}
+    C4([Finish])
+    C5([keep waiting])
+
+    C1 --&gt; C2
+    C2 --&gt; C3
+    C3 -- Yes --&gt; C4
+    C3 -- No --&gt; C5
+  end
+
+  SPAWN -. "child ends" .-&gt; COUNT
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>Two details deserve attention. First, the check happens on <strong>both</strong> counters: if a child finishes very quickly, before the last one is spawned, the executor must not finish early. Second, the spawn loop checks whether the executor is <strong>still running</strong> before each spawn, because something else may have finished or interrupted it in the meantime.</p>
+<p>Children can also relate to each other. In my case, each spawned figure follows the one in front of it, which turns a list of independent entities into a procession without any extra orchestration.</p>
+<hr>
+</section>
+<section id="readiness-barriers-making-sure-the-world-is-ready" class="level2">
+<h2 class="anchored" data-anchor-id="readiness-barriers-making-sure-the-world-is-ready">Readiness Barriers: Making Sure the World Is Ready</h2>
+<p>Executors assume the world is in place: assets loaded, settings applied, references resolved. When loading is asynchronous, a common source of bugs is an executor starting before what it needs exists.</p>
+<p>The same event-driven thinking solves this. Each loader registers itself when it starts, announces when it finishes and a global registry announces when <strong>all</strong> of them are done.</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"sequence": {"mirrorActors": false, "messageMargin": 28, "boxMargin": 6}}}%%
+sequenceDiagram
+  participant L1 as Loader A
+  participant L2 as Loader B
+  participant R as Readiness registry
+  participant C as Consumer
+
+  L1-&gt;&gt;R: register started
+  L2-&gt;&gt;R: register started
+  L1-&gt;&gt;R: register finished
+  R--&gt;&gt;R: schedule a single "all done" check
+  C-&gt;&gt;R: is Loader A finished?
+  R--&gt;&gt;C: yes, use it now
+  C-&gt;&gt;R: is Loader B finished?
+  R--&gt;&gt;C: not yet
+  C-&gt;&gt;L2: subscribe once to finished
+  L2-&gt;&gt;R: register finished
+  L2--&gt;&gt;C: finished
+  R--&gt;&gt;R: all started = all finished
+  R--&gt;&gt;R: emit all finished
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>The most important line in this diagram is the consumer <strong>asking before subscribing</strong>. Events are not stored: if a consumer subscribes after the loader has already finished, it will wait forever for an event that already happened. This is the <em>late subscriber</em> problem, and the fix is always the same: check the current state first, subscribe only if the result is not there yet.</p>
+<p>The other detail is the <strong>coalesced check</strong>. When several loaders finish in the same frame, the registry schedules a single “are we all done?” check for later in the frame, instead of evaluating it once per loader. The event fires once, at the right moment.</p>
+<hr>
+</section>
+<section id="interactions-as-event-sources" class="level2">
+<h2 class="anchored" data-anchor-id="interactions-as-event-sources">Interactions as Event Sources</h2>
+<p>So far, executors finish because of their own conditions. The other half of a game is the player <em>doing</em> things: pressing a button, opening a gate, pulling a lever. Those interactions should not call gameplay code directly either. They should become events.</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  subgraph IN[Input]
+    direction LR
+    A[Player presses interact] --&gt; B[Ray finds an interactable]
+  end
+
+  subgraph GEN[Generic interactable]
+    C["emits &amp;quot;interacted&amp;quot;"]
+  end
+
+  subgraph DOM[Owning object]
+    D["emits a domain event,&lt;br/&gt;e.g. &amp;quot;gate opened&amp;quot;"]
+  end
+
+  subgraph GAME[Gameplay reactions]
+    direction LR
+    E1[Finish an executor] ~~~ E2[Change a light] ~~~ E3[Play a sound]
+  end
+
+  IN --&gt; GEN
+  GEN --&gt; DOM
+  DOM --&gt; GAME
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>The layering matters. A generic interactable only knows <em>“I was interacted with”</em>. The object that owns it translates that into something meaningful, such as <em>“the gate was opened”</em> or <em>“the lever was pulled”</em>, and only then does gameplay react. Each layer can be reused without the ones above it: the same interactable powers a button, a drawer or a window, and the same <em>opened</em> event can finish an executor, change a light or trigger a sound.</p>
+<p>Draggable objects follow the same idea with a slightly richer state machine:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">stateDiagram-v2
+  direction LR
+  [*] --&gt; Idle
+  Idle --&gt; Dragging: begin drag
+  Dragging --&gt; Settling: release or too far
+  Settling --&gt; Idle: came to rest
+
+  Idle : Idle
+  Idle : if locked, a grab only
+  Idle : emits a locked interaction
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>Grabbing an object that is still settling simply starts a new drag, exactly as it would from <em>Idle</em>. Every transition emits a state change event, so a door that slams shut on its own, a locked drawer that rattles or a gate that reaches its limit can all be expressed without the drag logic knowing anything about horror.</p>
+<hr>
+</section>
+<section id="variation-through-data" class="level2">
+<h2 class="anchored" data-anchor-id="variation-through-data">Variation Through Data</h2>
+<p>In a horror game, predictability kills tension. The flow must be readable for the developer and <em>unreadable</em> for the player. The way to get both is to keep the structure fixed and move the variation into data.</p>
+<p>Two simple tools go a long way:</p>
+<ul>
+<li><strong>Profiles</strong>: a session description (short, medium or long, for example) that a sequencer reads to decide how many moments to run and how dense they are;</li>
+<li><strong>Weighted choices</strong>: every candidate (a creature, a sound, a texture variation, a line of dialogue) carries a weight, and selection is proportional to it.</li>
+</ul>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  subgraph IN[Weights]
+    direction LR
+    A["Creature A · 60"] ~~~ B["Creature B · 30"] ~~~ C["Creature C · 10"]
+  end
+
+  subgraph LINE["Running sums"]
+    direction LR
+    RA["0 – 59 → A"] --- RB["60 – 89 → B"] --- RC["90 – 99 → C"]
+  end
+
+  OUT(["Creature B is chosen"])
+
+  IN -- "total = 100" --&gt; LINE
+  LINE -- "random draw r = 72 falls in 60 – 89" --&gt; OUT
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>Selection walks the list accumulating weights and returns the first candidate whose running sum exceeds the draw, so each candidate wins with a probability proportional to its weight. When every weight is zero, the first candidate is returned instead of failing.</p>
+<p>Combined with executors, this turns content design into tuning. A rare scare is a candidate with a low weight. A night that escalates is a profile with denser sequences. None of it requires new code.</p>
+<hr>
+</section>
+<section id="evolving-the-engine-what-comes-next" class="level2">
+<h2 class="anchored" data-anchor-id="evolving-the-engine-what-comes-next">Evolving the Engine: What Comes Next</h2>
+<p>A sequential runner with blocking and fire-and-forget children already covers a surprising amount of a game. But once the contract is stable, the same idea extends naturally, and each extension is just <em>another executor that orchestrates executors</em>:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  E[Executor contract: start, update, finished]
+
+  subgraph LEAF[Leaf executors]
+    L1[Walk]
+    L2[Wait for event]
+    L3[Play animation]
+    L4[Spawn and wait]
+  end
+
+  subgraph COMP[Composite executors]
+    C1[Sequence: one after the other]
+    C2["Parallel all: finish when every child finishes"]
+    C3["Parallel any: finish when the first child finishes"]
+    C4[Selector: pick one child by condition or weight]
+    C5[Repeat: run a child N times or until a condition]
+  end
+
+  subgraph DEC[Decorators]
+    D1[Timeout: finish or fail after N seconds]
+    D2[Delay: wait before starting the child]
+    D3[Guard: only run if a condition holds]
+  end
+
+  E --&gt; LEAF
+  E --&gt; COMP
+  E --&gt; DEC
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>If this family looks familiar, it is because it converges towards behaviour trees<sup>3</sup>, with one important difference in intention: here the tree describes the <strong>pacing of the game</strong>, not the decisions of an agent.</p>
+<p>Three improvements to the base contract are worth making before the family grows:</p>
+<ol type="1">
+<li><strong>Cancellation.</strong> In a horror game, the player can be caught in the middle of anything. Executors need a <em>cancel</em> path, distinct from <em>finish</em>, that cleans up without triggering the next moment. Composites propagate it to their running children.</li>
+<li><strong>Reset.</strong> An executor that can only run once cannot be reused by a <em>Repeat</em> or replayed after a checkpoint. Resetting state and counters should be part of the contract.</li>
+<li><strong>Shared context.</strong> Executors frequently need the same references: the player, the main camera, the current session. Looking them up globally from every executor couples them to the world layout. Passing a context (often called a <em>blackboard</em>) from the sequencer down to its children keeps executors portable and makes them trivial to test.</li>
+</ol>
+<p>With cancellation in place, the state machine gains one more exit:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">stateDiagram-v2
+  direction LR
+
+  state "Not ended yet" as Active {
+    direction LR
+    [*] --&gt; Waiting
+    Waiting --&gt; Started: start
+  }
+
+  state "Ended" as Done {
+    direction TB
+    Finished
+    Cancelled
+  }
+
+  [*] --&gt; Active
+  Started --&gt; Finished: condition met
+  Active --&gt; Cancelled: cancel
+  Done --&gt; Active: reset
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>Cancellation can arrive at any point before the executor ends, and a reset brings either ending back to the start.</p>
+<p>And because every transition is an event, <strong>tracing</strong> comes almost for free: logging each start, finish, skip and cancel with the executor’s path in the tree gives you a timeline of every session, which is invaluable when a playtester says <em>“it just stopped”</em>.</p>
+<hr>
+</section>
+<section id="classified-segmentation-organising-the-project" class="level2">
+<h2 class="anchored" data-anchor-id="classified-segmentation-organising-the-project">Classified Segmentation: Organising the Project</h2>
+<p>An executor architecture only stays modular if the project structure reflects it. When base classes, concrete moments, global services and data all live in the same folder, the boundaries that the code works so hard to keep start to blur.</p>
+<p>The approach I settled on is to <strong>classify every piece by its nature first, and by its subject second</strong>:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  subgraph FEAT["Features: this game only"]
+    direction LR
+    F1["&lt;b&gt;Executors/&lt;/b&gt;&lt;br/&gt;Walk, LookAround,&lt;br/&gt;GetClose, Cutscene…"] ~~~ F2["&lt;b&gt;Loaders/&lt;/b&gt;&lt;br/&gt;concrete asset&lt;br/&gt;loaders"] ~~~ F3["&lt;b&gt;Actors and world&lt;/b&gt;&lt;br/&gt;objects,&lt;br/&gt;orchestrators"]
+  end
+
+  subgraph CORE["Core: any game"]
+    SYS["&lt;b&gt;Systems&lt;/b&gt;&lt;br/&gt;abstract behaviours:&lt;br/&gt;executor, loader, interactable"]
+    SRV["&lt;b&gt;Services&lt;/b&gt;&lt;br/&gt;global coordinators:&lt;br/&gt;readiness, notifications"]
+    DOM["&lt;b&gt;Domain&lt;/b&gt;&lt;br/&gt;pure data definitions:&lt;br/&gt;profiles, settings, weights"]
+
+    SYS --&gt; DOM
+    SRV --&gt; DOM
+  end
+
+  DATA[("Authored data files")]
+
+  FEAT == "depends on" ==&gt; CORE
+  DATA -. "instances of Domain types" .-&gt; CORE
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>A handful of rules make this classification hold over time:</p>
+<ul>
+<li><strong>One class per folder</strong>, named after it, with its visual or scene definition beside it when it has one;</li>
+<li><strong>Subclasses of a base in the same layer</strong> go in a plural folder inside the base’s folder (<code>Loader/Loaders/...</code>), so the family is visible at a glance;</li>
+<li><strong>Concrete implementations of a core base</strong> live in <em>Features</em>, grouped by <em>what they are</em> (<code>Executors/Walk</code>, <code>Executors/Cutscene</code>), never by the level where they first appeared;</li>
+<li><strong>Helpers that only exist for one class</strong> stay in that class’s folder until something else uses them, at which point they earn their own;</li>
+<li><strong>Dependencies point inwards</strong>: Features may depend on Core, Core never depends on Features.</li>
+</ul>
+<p>The last rule is the easiest to break and the most important to keep. The moment a core system references a concrete feature, for example the base executor looking up <em>the</em> player, it can no longer be reused in another game or tested without the whole world around it. The shared context described in the previous section is precisely what removes that last dependency.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>A quick test for your structure
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Pick any folder in <em>Core</em> and imagine copying it into a completely different game. If it does not compile, or does not make sense, without something from <em>Features</em>, the boundary has leaked.</p>
+</div>
+</div>
+<hr>
+</section>
+<section id="trade-offs" class="level2">
+<h2 class="anchored" data-anchor-id="trade-offs">Trade-offs</h2>
+<p>The model is not free, and its costs should be weighed before adopting it:</p>
+<ul>
+<li><strong>Indirection.</strong> The flow is no longer visible in the code of any single piece. Without tooling (a readable tree in the editor, tracing in the logs), <em>“why did this happen now?”</em> becomes harder to answer, not easier;</li>
+<li><strong>Event chains are harder to debug than calls.</strong> A missing or misnamed completion event does not raise an error; it simply never arrives. Logging skipped children and executors that stay <em>Started</em> for too long is the countermeasure;</li>
+<li><strong>Fail forward hides failures.</strong> It keeps the session running, but only logging makes the skip visible, and critical executors should opt out of it;</li>
+<li><strong>Over-generalisation.</strong> Not every behaviour is a moment in a flow. Continuous systems (movement, physics, ambient simulation) belong in the regular update loop, and wrapping them as executors only adds ceremony;</li>
+<li><strong>Granularity.</strong> Executors that are too small turn sequences into long lists of trivial steps; executors that are too large reintroduce the coupling the model was meant to remove. A useful heuristic is one executor per <em>completion condition the designer cares about</em>.</li>
+</ul>
+<hr>
+</section>
+<section id="conclusion" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
+<p>The architecture described here moves the gameplay flow out of the individual pieces and into an explicit, composable structure:</p>
+<ul>
+<li>A minimal <strong>executor contract</strong> (start, update, announce the end) with a lifecycle owned by a base and behaviour supplied through hooks;</li>
+<li><strong>Composition</strong> through executors that orchestrate executors, starting with the sequencer and extending to parallel, selector, repeat and decorator variants;</li>
+<li><strong>Events</strong> as the only coupling between pieces, from completion and readiness to player interaction;</li>
+<li><strong>Data</strong> as the source of variation, through profiles and weighted choices;</li>
+<li>A <strong>classified project structure</strong>, by nature first and subject second, with dependencies pointing inwards.</li>
+</ul>
+<p>The result is a game loop that describes <em>what</em> happens, while each executor decides <em>how</em>.</p>
+<hr>
+<div class="column-body">
+<script src="https://giscus.app/client.js" data-repo="danieltorquatof/blog" data-repo-id="R_kgDONv_J5g" data-category="Articles" data-mapping="number" data-term="51" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="preferred_color_scheme" data-lang="en" data-loading="lazy" crossorigin="anonymous" async="">
+</script>
+</div>
+
+
+</section>
+
+
+<div id="quarto-appendix" class="default"><section id="footnotes" class="footnotes footnotes-end-of-document"><h2 class="anchored quarto-appendix-heading">Footnotes</h2>
+
+<ol>
+<li id="fn1"><p>Gamma, E., Helm, R., Johnson, R. and Vlissides, J. <em>Design Patterns: Elements of Reusable Object-Oriented Software</em>, 1994, “Template Method”.↩︎</p></li>
+<li id="fn2"><p>Ibid., “Composite”. For game-specific variations of these ideas, see Nystrom, R. <em>Game Programming Patterns</em>, 2014, especially the “Update Method”, “Event Queue” and “Service Locator” chapters.↩︎</p></li>
+<li id="fn3"><p>Behaviour trees are a widely used technique for agent decision-making in games, popularised by their use in large commercial titles in the mid-2000s.↩︎</p></li>
+</ol>
+</section></div> ]]></description>
+  <category>Game Development</category>
+  <category>Software Architecture</category>
+  <category>Systems Design</category>
+  <category>Design Patterns</category>
+  <guid>https://blog.danieltorquatof.spikeystudio.com/articles/abstracting-executors-modular-game-loops/</guid>
+  <pubDate>Tue, 17 Nov 2026 00:00:00 GMT</pubDate>
+</item>
 <item>
   <title>Designing Reliable Automation Pipelines for Persistent Game Worlds</title>
   <dc:creator>Daniel Torquato</dc:creator>

@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.10.19">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Daniel Torquato">
+<meta name="dcterms.date" content="2026-11-17">
+<meta name="description" content="An engine-agnostic look at executors, sequencers and event-driven flows that make game loops modular, plus a classified way to organise the project around them.">
+
+<title>Abstracting and Generalising Executors for Modular Game Loops – Daniel Torquato</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<link href="../../assets/icons/favicon.ico" rel="icon">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-dark-b626d73c4c936ccc3cb08be7d45d1df6.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-ec80a17a85d6a8798dfb477aad9c7394.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-dark-fb87b5cc84404828a0cf4f2709024f03.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../../site_libs/bootstrap/bootstrap-ec80a17a85d6a8798dfb477aad9c7394.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "?",
+    "H"
+  ],
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var alternateFormatsContainer = document.querySelector(
+      ".quarto-alternate-formats"
+    );
+    if (alternateFormatsContainer) {
+      var links = alternateFormatsContainer.querySelectorAll("a");
+      links.forEach(function (link) {
+        if (link.href && link.href.endsWith(".pdf")) {
+          link.setAttribute("target", "_blank");
+        }
+      });
+    }
+  });
+</script>
+<script src="../../site_libs/quarto-diagram/mermaid.min.js"></script>
+<script src="../../site_libs/quarto-diagram/mermaid-init.js"></script>
+<link href="../../site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
+
+
+<meta property="og:url" content="https://blog.danieltorquatof.spikeystudio.com/articles/abstracting-executors-modular-game-loops/">
+<meta property="og:title" content="Abstracting and Generalising Executors for Modular Game Loops – Daniel Torquato">
+<meta property="og:description" content="An engine-agnostic look at executors, sequencers and event-driven flows that make game loops modular, plus a classified way to organise the project around them.">
+<meta property="og:image" content="https://blog.danieltorquatof.spikeystudio.com/articles/abstracting-executors-modular-game-loops/og-image.png">
+<meta property="og:site_name" content="Daniel Torquato">
+<meta property="og:locale" content="en_US">
+<meta property="og:image:alt" content="Abstracting and Generalising Executors for Modular Game Loops – Daniel Torquato">
+<meta name="twitter:title" content="Abstracting and Generalising Executors for Modular Game Loops – Daniel Torquato">
+<meta name="twitter:description" content="An engine-agnostic look at executors, sequencers and event-driven flows that make game loops modular, plus a classified way to organise the project around them.">
+<meta name="twitter:image" content="https://blog.danieltorquatof.spikeystudio.com/articles/abstracting-executors-modular-game-loops/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image:alt" content="Abstracting and Generalising Executors for Modular Game Loops – Daniel Torquato">
+<link rel="canonical" href="https://blog.danieltorquatof.spikeystudio.com/articles/abstracting-executors-modular-game-loops/">
+<meta name="citation_title" content="Abstracting and Generalising Executors for Modular Game Loops">
+<meta name="citation_author" content="Daniel Torquato">
+<meta name="citation_publication_date" content="2026-11-17">
+<meta name="citation_cover_date" content="2026-11-17">
+<meta name="citation_year" content="2026">
+<meta name="citation_online_date" content="2026-11-17">
+<meta name="citation_fulltext_html_url" content="https://blog.danieltorquatof.spikeystudio.com/articles/abstracting-executors-modular-game-loops/">
+<meta name="citation_language" content="en">
+<script type="application/ld+json" id="seo-json-ld">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://blog.danieltorquatof.spikeystudio.com/#website",
+      "name": "Daniel Torquato",
+      "alternateName": "DT's Blog",
+      "description": "Daniel Torquato's blog on software engineering, data science, artificial intelligence, DevOps and systems design.",
+      "url": "https://blog.danieltorquatof.spikeystudio.com/",
+      "inLanguage": "en",
+      "author": {
+        "@id": "https://blog.danieltorquatof.spikeystudio.com/#person"
+      },
+      "publisher": {
+        "@id": "https://blog.danieltorquatof.spikeystudio.com/#person"
+      }
+    },
+    {
+      "@type": "Person",
+      "@id": "https://blog.danieltorquatof.spikeystudio.com/#person",
+      "name": "Daniel Torquato",
+      "url": "https://blog.danieltorquatof.spikeystudio.com/aboutMe/resume.html",
+      "sameAs": [
+        "https://www.linkedin.com/in/danieltorquatof/",
+        "https://github.com/danieltorquatof"
+      ],
+      "jobTitle": "Research & Development Engineer"
+    },
+    {
+      "@type": "Article",
+      "@id": "https://blog.danieltorquatof.spikeystudio.com/articles/abstracting-executors-modular-game-loops/",
+      "url": "https://blog.danieltorquatof.spikeystudio.com/articles/abstracting-executors-modular-game-loops/",
+      "mainEntityOfPage": "https://blog.danieltorquatof.spikeystudio.com/articles/abstracting-executors-modular-game-loops/",
+      "headline": "Abstracting and Generalising Executors for Modular Game Loops",
+      "alternativeHeadline": "How small units of intention, composed into sequences, turn a game loop into something you assemble instead of rewrite",
+      "description": "An engine-agnostic look at executors, sequencers and event-driven flows that make game loops modular, plus a classified way to organise the project around them.",
+      "image": "https://blog.danieltorquatof.spikeystudio.com/articles/abstracting-executors-modular-game-loops/og-image.png",
+      "datePublished": "2026-11-17",
+      "dateModified": "2026-11-17",
+      "keywords": [
+        "Game Development",
+        "Software Architecture",
+        "Systems Design",
+        "Design Patterns"
+      ],
+      "author": {
+        "@id": "https://blog.danieltorquatof.spikeystudio.com/#person"
+      },
+      "publisher": {
+        "@id": "https://blog.danieltorquatof.spikeystudio.com/#person"
+      },
+      "isPartOf": {
+        "@id": "https://blog.danieltorquatof.spikeystudio.com/#website"
+      },
+      "inLanguage": "en"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Daniel Torquato",
+          "item": "https://blog.danieltorquatof.spikeystudio.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Articles",
+          "item": "https://blog.danieltorquatof.spikeystudio.com/articles/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Abstracting and Generalising Executors for Modular Game Loops",
+          "item": "https://blog.danieltorquatof.spikeystudio.com/articles/abstracting-executors-modular-game-loops/"
+        }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+
+<body class="nav-fixed fullcontent quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">DT’s Blog</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../posts/index.html"> 
+<span class="menu-text">Posts</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../projects/index.html"> 
+<span class="menu-text">Projects</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../articles/index.html"> 
+<span class="menu-text">Articles</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../achievements/index.html"> 
+<span class="menu-text">Achievements</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-about-me" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">About me</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-about-me">    
+        <li>
+    <a class="dropdown-item" href="../../aboutMe/resume.html"><i class="bi bi-file-person-fill" role="img">
+</i> 
+ <span class="dropdown-text">Resume</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools tools-wide">
+    <a href="https://www.linkedin.com/in/danieltorquatof/" title="LinkedIn" class="quarto-navigation-tool px-1" aria-label="LinkedIn" target="_blank"><i class="bi bi-linkedin"></i></a>
+    <a href="https://github.com/danieltorquatof" title="" class="quarto-navigation-tool px-1" aria-label="" target="_blank"><i class="bi bi-github"></i></a>
+    <a href="../../index.xml" title="" class="quarto-navigation-tool px-1" aria-label="" target="_blank"><i class="bi bi-rss"></i></a>
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    
+<!-- main -->
+<main class="content page-columns page-full" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Abstracting and Generalising Executors for Modular Game Loops</h1>
+<p class="subtitle lead">How small units of intention, composed into sequences, turn a game loop into something you assemble instead of rewrite</p>
+  <div class="quarto-categories">
+    <div class="quarto-category">Game Development</div>
+    <div class="quarto-category">Software Architecture</div>
+    <div class="quarto-category">Systems Design</div>
+    <div class="quarto-category">Design Patterns</div>
+  </div>
+  </div>
+
+<div>
+  <div class="description">
+    An engine-agnostic look at executors, sequencers and event-driven flows that make game loops modular, plus a classified way to organise the project around them.
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p><a href="https://blog.danieltorquatof.spikeystudio.com/aboutMe/resume.html">Daniel Torquato</a> </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">November 17, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<hr>
+<p>At the gameplay level, a game is an ordered set of moments: the player walks a few steps, looks around, approaches a door, a scene plays, something appears in the dark. Each moment has a precondition, a completion condition and side effects on the world. When those moments are scripted directly against each other, the flow is spread across flags, timers and callbacks in many places, and any change in order or content becomes a refactor.</p>
+<p>This article describes an architecture that addresses this by <strong>treating every moment of the game as an executor</strong>: a unit with a uniform lifecycle and an explicit completion event, orchestrated by generic components that know nothing about what each executor does. It covers:</p>
+<ul>
+<li>The executor contract and its lifecycle;</li>
+<li>Composition through sequencers and the capabilities a child can expose;</li>
+<li>Aggregation, readiness barriers and interactions as event sources;</li>
+<li>Data-driven variation;</li>
+<li>Extensions of the model (parallelism, selection, cancellation, shared context);</li>
+<li>A classified segmentation of the project that keeps these boundaries intact.</li>
+</ul>
+<p>The examples come from a horror game, but nothing here depends on a genre, an engine or a programming language. Every flow is described as a diagram so that it can be translated to any toolset.</p>
+<hr>
+<section id="the-problem-with-hardcoded-game-loops" class="level2">
+<h2 class="anchored" data-anchor-id="the-problem-with-hardcoded-game-loops">The Problem with Hardcoded Game Loops</h2>
+<p>Before talking about the solution, it is worth visualising the problem. The most common way to script a sequence of gameplay moments is to let each piece know what comes next.</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart LR;
+  subgraph CHAIN[Direct calls]
+    direction TB
+    A[Player script]
+    B[Tutorial script]
+    C[Door script]
+    D[Cutscene script]
+    E[Encounter script]
+
+    A -- "sets walked" --&gt; B
+    B -- "enables" --&gt; C
+    C -- "on open, plays" --&gt; D
+    D -- "on end, spawns" --&gt; E
+  end
+
+  F[("Shared flags&lt;br/&gt;read and written&lt;br/&gt;by every script")]
+
+  CHAIN &lt;-. "hidden coupling" .-&gt; F
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>Every arrow in this diagram is a dependency. The door knows about the cutscene, the cutscene knows about the encounter, and every script reads or writes flags that others left behind. The flow exists, but it exists <em>implicitly</em>, spread across the pieces, and nobody can read it in a single place.</p>
+<p>The consequences are predictable:</p>
+<ul>
+<li>Reordering two moments requires editing every script around them;</li>
+<li>Reusing a moment in another level drags its neighbours along;</li>
+<li>A missing object halfway through silently freezes the whole sequence;</li>
+<li>Testing one moment in isolation is nearly impossible.</li>
+</ul>
+<p>What we want is the opposite: pieces that know nothing about each other, and a flow that is described explicitly, in one place, by something whose only job is to run it.</p>
+<hr>
+</section>
+<section id="the-executor-the-smallest-unit-of-intention" class="level2">
+<h2 class="anchored" data-anchor-id="the-executor-the-smallest-unit-of-intention">The Executor: The Smallest Unit of Intention</h2>
+<p>An executor is anything that represents <em>one thing that must happen</em>: wait for the player to walk ten metres, play an animation, spawn a creature, wait until a light is switched off. What makes it an executor is not what it does, but the contract it follows:</p>
+<ol type="1">
+<li>It can be <strong>started</strong>;</li>
+<li>While running, it can <strong>update</strong> itself, every frame or every tick;</li>
+<li>At some point it decides it is done and <strong>announces that it has finished</strong>.</li>
+</ol>
+<p>That contract can be modelled as a tiny state machine:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">stateDiagram-v2
+  direction LR
+  [*] --&gt; Waiting
+  Waiting --&gt; Started: start
+  Started --&gt; Finished: condition met
+  Finished --&gt; [*]: emits finished
+
+  Started : Started
+  Started : update every tick
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>Three states, two transitions that matter. The executor does not know who started it, and it does not know what comes after it. It only knows its own completion condition.</p>
+<section id="lifecycle-hooks" class="level3">
+<h3 class="anchored" data-anchor-id="lifecycle-hooks">Lifecycle hooks</h3>
+<p>To avoid every executor reimplementing the same state handling, the base executor owns the state machine and exposes only <em>hooks</em> for the specific behaviour, a classic application of the Template Method pattern<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"sequence": {"mirrorActors": false, "messageMargin": 28, "boxMargin": 6}}}%%
+sequenceDiagram
+  participant O as Orchestrator
+  participant B as Base executor
+  participant C as Concrete executor
+
+  O-&gt;&gt;B: start
+  B-&gt;&gt;B: state = Started
+  B-&gt;&gt;C: on start
+  Note right of C: prepare, show hints,&lt;br/&gt;spawn things
+
+  loop every tick while Started
+    B-&gt;&gt;C: on update
+    C-&gt;&gt;C: measure progress
+  end
+
+  C-&gt;&gt;B: finish (condition met)
+  B-&gt;&gt;B: state = Finished
+  B-&gt;&gt;C: on finish
+  Note right of C: clean up what it created
+  B--&gt;&gt;O: finished event
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>The concrete executor never touches the state directly. It prepares what it needs when it starts, measures its own progress while running, calls <em>finish</em> when its condition is met and cleans up afterwards. Everything else is guaranteed by the base.</p>
+<p>A few examples of how different moments fit the same shape:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Executor</th>
+<th>On start</th>
+<th>On update</th>
+<th>Completion condition</th>
+<th>On finish</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Walk</td>
+<td>Show a movement hint</td>
+<td>Accumulate horizontal distance travelled</td>
+<td>Distance ≥ N metres</td>
+<td>Remove the hint</td>
+</tr>
+<tr class="even">
+<td>Look around</td>
+<td>Show a camera hint</td>
+<td>Accumulate absolute rotation</td>
+<td>Rotation ≥ N degrees</td>
+<td>Remove the hint</td>
+</tr>
+<tr class="odd">
+<td>Get close</td>
+<td>Place a marker on a target</td>
+<td>Measure distance to the target</td>
+<td>Distance ≤ N metres</td>
+<td>Remove the marker</td>
+</tr>
+<tr class="even">
+<td>Cutscene</td>
+<td>Lock controls, play animation</td>
+<td>Nothing</td>
+<td>Animation finished event</td>
+<td>Restore controls</td>
+</tr>
+</tbody>
+</table>
+<p>Notice that the last row has no update logic at all. Its completion comes from <em>another</em> event, which already hints at something important: executors can finish because of time, because of player progress or because something else in the world told them to.</p>
+<hr>
+</section>
+</section>
+<section id="fail-forward-executors-that-never-deadlock" class="level2">
+<h2 class="anchored" data-anchor-id="fail-forward-executors-that-never-deadlock">Fail Forward: Executors That Never Deadlock</h2>
+<p>Games run in messy environments. Objects get renamed, a target is removed from a level, an asset fails to load. In a hardcoded flow, any of these freezes the sequence forever, usually without an error.</p>
+<p>Executors can adopt a simple rule: <strong>if an executor cannot do its job, it finishes immediately</strong>.</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  A([start])
+  B{Can it run?}
+  C[Run on start hook]
+  D["Every tick: run on update&lt;br/&gt;until the condition is met"]
+  S[Skip and log it]
+  F(["Finish and emit finished"])
+
+  A --&gt; B
+  B -- Yes --&gt; C
+  C --&gt; D
+  D -- "condition met" --&gt; F
+  B -- No --&gt; S
+  D -. "dependency lost" .-&gt; S
+  S --&gt; F
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>The sequence always moves forward. A missing marker means the player does not see a hint, not that the game stops.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Fail forward or fail stop?
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Skipping is the right default for <em>presentation</em> (hints, markers, ambience). For moments that carry state the rest of the game depends on, such as giving the player a key, skipping silently only moves the bug further away. Make the choice explicit per executor and <strong>always log the skip</strong>, so a broken moment shows up in the logs instead of in a player’s review.</p>
+</div>
+</div>
+<hr>
+</section>
+<section id="the-sequencer-an-executor-of-executors" class="level2">
+<h2 class="anchored" data-anchor-id="the-sequencer-an-executor-of-executors">The Sequencer: An Executor of Executors</h2>
+<p>With a uniform contract in place, the orchestrator becomes almost boringly simple. A sequencer holds an ordered list of executors and runs them one after the other:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"sequence": {"mirrorActors": false, "messageMargin": 28, "boxMargin": 6}}}%%
+sequenceDiagram
+  participant SQ as Sequencer
+  participant E1 as Executor 1
+  participant E2 as Executor 2
+  participant E3 as Executor 3
+
+  SQ-&gt;&gt;E1: start
+  Note over E1: runs until its condition is met
+  E1--&gt;&gt;SQ: finished
+  SQ-&gt;&gt;E2: start
+  E2--&gt;&gt;SQ: finished
+  SQ-&gt;&gt;E3: start
+  E3--&gt;&gt;SQ: finished
+  Note over SQ: no executors left
+  SQ--&gt;&gt;SQ: emit finished
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>The sequencer subscribes to the <em>finished</em> event of the current executor once, starts it and waits. When the event arrives, it moves to the next one. When the list is over, it announces that <em>it</em> has finished.</p>
+<p>And that last detail is where the idea becomes powerful: <strong>a sequencer follows the same contract as an executor</strong>. It can be started and it announces when it is done. So a sequencer can be placed inside another sequencer, exactly like any other executor, which is the Composite pattern<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> applied to gameplay flow.</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  ROOT[Root sequencer]
+
+  subgraph T[Tutorial sequencer]
+    direction LR
+    T1[Walk] --&gt; T2[Look around] --&gt; T3[Get close to target] --&gt; T4[Cutscene]
+  end
+
+  subgraph N[Night sequencer]
+    direction LR
+    N1[Spawn a group and wait for all to leave] --&gt; N2[Spawn a single figure and wait]
+  end
+
+  subgraph F[Finale sequencer]
+    direction LR
+    F1[Lights out] --&gt; F2[Encounter] --&gt; F3[Ending cutscene]
+  end
+
+  ROOT --&gt; T
+  T -- finished --&gt; N
+  N -- finished --&gt; F
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>The whole game flow is now a <strong>tree you can read</strong>. Reordering the tutorial means moving two items in a list. Removing the finale for a demo build means removing one branch. Testing the night sequence means starting that sequencer directly, without playing the tutorial first.</p>
+<hr>
+</section>
+<section id="the-contract-is-the-interface-not-the-type" class="level2">
+<h2 class="anchored" data-anchor-id="the-contract-is-the-interface-not-the-type">The Contract Is the Interface, Not the Type</h2>
+<p>There is a subtle decision hidden in the previous section. The sequencer does not ask <em>“is this an executor?”</em>. It asks <em>“can this be started, and does it announce when it finishes?”</em>.</p>
+<p>That difference matters because it lets the sequencer orchestrate things that were never designed as executors. A creature that walks a path and announces when it reaches the end, an animation player that announces when a clip ends, a door that announces when it is opened: all of them can join a sequence, as long as they expose the two halves of the contract.</p>
+<p>It also gives the sequencer a natural vocabulary for three kinds of children:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart LR;
+  A[Next child]
+  B{Can it&lt;br/&gt;start?}
+  C{Announces&lt;br/&gt;finished?}
+  N["&lt;b&gt;Non-executor&lt;/b&gt;&lt;br/&gt;skip it"]
+  F["&lt;b&gt;Fire-and-forget&lt;/b&gt;&lt;br/&gt;start it, continue at once"]
+  W["&lt;b&gt;Blocking&lt;/b&gt;&lt;br/&gt;subscribe once, start it,&lt;br/&gt;wait for finished"]
+
+  A --&gt; B
+  B -- No --&gt; N
+  B -- Yes --&gt; C
+  C -- No --&gt; F
+  C -- Yes --&gt; W
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<ul>
+<li><strong>Blocking executors</strong> start and hold the sequence until they finish;</li>
+<li><strong>Fire-and-forget executors</strong> start and let the sequence continue at once, which is a cheap way of running things in parallel (an ambient sound, a flickering light);</li>
+<li><strong>Non-executors</strong> are ignored, so helpers and data can live next to the executors without breaking anything.</li>
+</ul>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Explicit beats implicit, eventually
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Checking capabilities at runtime is flexible and fast to prototype with. As the project grows, a formal contract (an interface, a protocol, a trait, whatever your language calls it) catches mistakes earlier, such as a misspelled event name that silently turns a blocking executor into a fire-and-forget one. A good middle ground is to keep the flexible check in the sequencer but log every child it skips or does not wait for.</p>
+</div>
+</div>
+<hr>
+</section>
+<section id="waiting-for-many-aggregating-executors" class="level2">
+<h2 class="anchored" data-anchor-id="waiting-for-many-aggregating-executors">Waiting for Many: Aggregating Executors</h2>
+<p>Some moments are not a single action but a group of them. Picture a scene where several figures walk past the player, one after another, and the moment is only over when <strong>every one of them</strong> has left.</p>
+<p>The executor that represents this moment is itself a small orchestrator: it spawns its children at an interval, counts how many finished and only finishes when both counts reach the target.</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart LR;
+  subgraph SPAWN[Spawning loop]
+    direction TB
+    S1([start])
+    S2["Spawn a child and&lt;br/&gt;subscribe to its finished"]
+    S3{All N&lt;br/&gt;spawned?}
+    S4["Wait the interval&lt;br/&gt;(stop if no longer Started)"]
+    S5([stop spawning])
+
+    S1 --&gt; S2
+    S2 --&gt; S3
+    S3 -- No --&gt; S4
+    S4 --&gt; S2
+    S3 -- Yes --&gt; S5
+  end
+
+  subgraph COUNT[On each child finished]
+    direction TB
+    C1([child finished])
+    C2[finished += 1]
+    C3{"spawned = N&lt;br/&gt;and&lt;br/&gt;finished = N?"}
+    C4([Finish])
+    C5([keep waiting])
+
+    C1 --&gt; C2
+    C2 --&gt; C3
+    C3 -- Yes --&gt; C4
+    C3 -- No --&gt; C5
+  end
+
+  SPAWN -. "child ends" .-&gt; COUNT
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>Two details deserve attention. First, the check happens on <strong>both</strong> counters: if a child finishes very quickly, before the last one is spawned, the executor must not finish early. Second, the spawn loop checks whether the executor is <strong>still running</strong> before each spawn, because something else may have finished or interrupted it in the meantime.</p>
+<p>Children can also relate to each other. In my case, each spawned figure follows the one in front of it, which turns a list of independent entities into a procession without any extra orchestration.</p>
+<hr>
+</section>
+<section id="readiness-barriers-making-sure-the-world-is-ready" class="level2">
+<h2 class="anchored" data-anchor-id="readiness-barriers-making-sure-the-world-is-ready">Readiness Barriers: Making Sure the World Is Ready</h2>
+<p>Executors assume the world is in place: assets loaded, settings applied, references resolved. When loading is asynchronous, a common source of bugs is an executor starting before what it needs exists.</p>
+<p>The same event-driven thinking solves this. Each loader registers itself when it starts, announces when it finishes and a global registry announces when <strong>all</strong> of them are done.</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"sequence": {"mirrorActors": false, "messageMargin": 28, "boxMargin": 6}}}%%
+sequenceDiagram
+  participant L1 as Loader A
+  participant L2 as Loader B
+  participant R as Readiness registry
+  participant C as Consumer
+
+  L1-&gt;&gt;R: register started
+  L2-&gt;&gt;R: register started
+  L1-&gt;&gt;R: register finished
+  R--&gt;&gt;R: schedule a single "all done" check
+  C-&gt;&gt;R: is Loader A finished?
+  R--&gt;&gt;C: yes, use it now
+  C-&gt;&gt;R: is Loader B finished?
+  R--&gt;&gt;C: not yet
+  C-&gt;&gt;L2: subscribe once to finished
+  L2-&gt;&gt;R: register finished
+  L2--&gt;&gt;C: finished
+  R--&gt;&gt;R: all started = all finished
+  R--&gt;&gt;R: emit all finished
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>The most important line in this diagram is the consumer <strong>asking before subscribing</strong>. Events are not stored: if a consumer subscribes after the loader has already finished, it will wait forever for an event that already happened. This is the <em>late subscriber</em> problem, and the fix is always the same: check the current state first, subscribe only if the result is not there yet.</p>
+<p>The other detail is the <strong>coalesced check</strong>. When several loaders finish in the same frame, the registry schedules a single “are we all done?” check for later in the frame, instead of evaluating it once per loader. The event fires once, at the right moment.</p>
+<hr>
+</section>
+<section id="interactions-as-event-sources" class="level2">
+<h2 class="anchored" data-anchor-id="interactions-as-event-sources">Interactions as Event Sources</h2>
+<p>So far, executors finish because of their own conditions. The other half of a game is the player <em>doing</em> things: pressing a button, opening a gate, pulling a lever. Those interactions should not call gameplay code directly either. They should become events.</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  subgraph IN[Input]
+    direction LR
+    A[Player presses interact] --&gt; B[Ray finds an interactable]
+  end
+
+  subgraph GEN[Generic interactable]
+    C["emits &amp;quot;interacted&amp;quot;"]
+  end
+
+  subgraph DOM[Owning object]
+    D["emits a domain event,&lt;br/&gt;e.g. &amp;quot;gate opened&amp;quot;"]
+  end
+
+  subgraph GAME[Gameplay reactions]
+    direction LR
+    E1[Finish an executor] ~~~ E2[Change a light] ~~~ E3[Play a sound]
+  end
+
+  IN --&gt; GEN
+  GEN --&gt; DOM
+  DOM --&gt; GAME
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>The layering matters. A generic interactable only knows <em>“I was interacted with”</em>. The object that owns it translates that into something meaningful, such as <em>“the gate was opened”</em> or <em>“the lever was pulled”</em>, and only then does gameplay react. Each layer can be reused without the ones above it: the same interactable powers a button, a drawer or a window, and the same <em>opened</em> event can finish an executor, change a light or trigger a sound.</p>
+<p>Draggable objects follow the same idea with a slightly richer state machine:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">stateDiagram-v2
+  direction LR
+  [*] --&gt; Idle
+  Idle --&gt; Dragging: begin drag
+  Dragging --&gt; Settling: release or too far
+  Settling --&gt; Idle: came to rest
+
+  Idle : Idle
+  Idle : if locked, a grab only
+  Idle : emits a locked interaction
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>Grabbing an object that is still settling simply starts a new drag, exactly as it would from <em>Idle</em>. Every transition emits a state change event, so a door that slams shut on its own, a locked drawer that rattles or a gate that reaches its limit can all be expressed without the drag logic knowing anything about horror.</p>
+<hr>
+</section>
+<section id="variation-through-data" class="level2">
+<h2 class="anchored" data-anchor-id="variation-through-data">Variation Through Data</h2>
+<p>In a horror game, predictability kills tension. The flow must be readable for the developer and <em>unreadable</em> for the player. The way to get both is to keep the structure fixed and move the variation into data.</p>
+<p>Two simple tools go a long way:</p>
+<ul>
+<li><strong>Profiles</strong>: a session description (short, medium or long, for example) that a sequencer reads to decide how many moments to run and how dense they are;</li>
+<li><strong>Weighted choices</strong>: every candidate (a creature, a sound, a texture variation, a line of dialogue) carries a weight, and selection is proportional to it.</li>
+</ul>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  subgraph IN[Weights]
+    direction LR
+    A["Creature A · 60"] ~~~ B["Creature B · 30"] ~~~ C["Creature C · 10"]
+  end
+
+  subgraph LINE["Running sums"]
+    direction LR
+    RA["0 – 59 → A"] --- RB["60 – 89 → B"] --- RC["90 – 99 → C"]
+  end
+
+  OUT(["Creature B is chosen"])
+
+  IN -- "total = 100" --&gt; LINE
+  LINE -- "random draw r = 72 falls in 60 – 89" --&gt; OUT
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>Selection walks the list accumulating weights and returns the first candidate whose running sum exceeds the draw, so each candidate wins with a probability proportional to its weight. When every weight is zero, the first candidate is returned instead of failing.</p>
+<p>Combined with executors, this turns content design into tuning. A rare scare is a candidate with a low weight. A night that escalates is a profile with denser sequences. None of it requires new code.</p>
+<hr>
+</section>
+<section id="evolving-the-engine-what-comes-next" class="level2">
+<h2 class="anchored" data-anchor-id="evolving-the-engine-what-comes-next">Evolving the Engine: What Comes Next</h2>
+<p>A sequential runner with blocking and fire-and-forget children already covers a surprising amount of a game. But once the contract is stable, the same idea extends naturally, and each extension is just <em>another executor that orchestrates executors</em>:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  E[Executor contract: start, update, finished]
+
+  subgraph LEAF[Leaf executors]
+    L1[Walk]
+    L2[Wait for event]
+    L3[Play animation]
+    L4[Spawn and wait]
+  end
+
+  subgraph COMP[Composite executors]
+    C1[Sequence: one after the other]
+    C2["Parallel all: finish when every child finishes"]
+    C3["Parallel any: finish when the first child finishes"]
+    C4[Selector: pick one child by condition or weight]
+    C5[Repeat: run a child N times or until a condition]
+  end
+
+  subgraph DEC[Decorators]
+    D1[Timeout: finish or fail after N seconds]
+    D2[Delay: wait before starting the child]
+    D3[Guard: only run if a condition holds]
+  end
+
+  E --&gt; LEAF
+  E --&gt; COMP
+  E --&gt; DEC
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>If this family looks familiar, it is because it converges towards behaviour trees<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>, with one important difference in intention: here the tree describes the <strong>pacing of the game</strong>, not the decisions of an agent.</p>
+<p>Three improvements to the base contract are worth making before the family grows:</p>
+<ol type="1">
+<li><strong>Cancellation.</strong> In a horror game, the player can be caught in the middle of anything. Executors need a <em>cancel</em> path, distinct from <em>finish</em>, that cleans up without triggering the next moment. Composites propagate it to their running children.</li>
+<li><strong>Reset.</strong> An executor that can only run once cannot be reused by a <em>Repeat</em> or replayed after a checkpoint. Resetting state and counters should be part of the contract.</li>
+<li><strong>Shared context.</strong> Executors frequently need the same references: the player, the main camera, the current session. Looking them up globally from every executor couples them to the world layout. Passing a context (often called a <em>blackboard</em>) from the sequencer down to its children keeps executors portable and makes them trivial to test.</li>
+</ol>
+<p>With cancellation in place, the state machine gains one more exit:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">stateDiagram-v2
+  direction LR
+
+  state "Not ended yet" as Active {
+    direction LR
+    [*] --&gt; Waiting
+    Waiting --&gt; Started: start
+  }
+
+  state "Ended" as Done {
+    direction TB
+    Finished
+    Cancelled
+  }
+
+  [*] --&gt; Active
+  Started --&gt; Finished: condition met
+  Active --&gt; Cancelled: cancel
+  Done --&gt; Active: reset
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>Cancellation can arrive at any point before the executor ends, and a reset brings either ending back to the start.</p>
+<p>And because every transition is an event, <strong>tracing</strong> comes almost for free: logging each start, finish, skip and cancel with the executor’s path in the tree gives you a timeline of every session, which is invaluable when a playtester says <em>“it just stopped”</em>.</p>
+<hr>
+</section>
+<section id="classified-segmentation-organising-the-project" class="level2">
+<h2 class="anchored" data-anchor-id="classified-segmentation-organising-the-project">Classified Segmentation: Organising the Project</h2>
+<p>An executor architecture only stays modular if the project structure reflects it. When base classes, concrete moments, global services and data all live in the same folder, the boundaries that the code works so hard to keep start to blur.</p>
+<p>The approach I settled on is to <strong>classify every piece by its nature first, and by its subject second</strong>:</p>
+<div class="cell" data-fig-width="100%" data-layout-align="center">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  subgraph FEAT["Features: this game only"]
+    direction LR
+    F1["&lt;b&gt;Executors/&lt;/b&gt;&lt;br/&gt;Walk, LookAround,&lt;br/&gt;GetClose, Cutscene…"] ~~~ F2["&lt;b&gt;Loaders/&lt;/b&gt;&lt;br/&gt;concrete asset&lt;br/&gt;loaders"] ~~~ F3["&lt;b&gt;Actors and world&lt;/b&gt;&lt;br/&gt;objects,&lt;br/&gt;orchestrators"]
+  end
+
+  subgraph CORE["Core: any game"]
+    SYS["&lt;b&gt;Systems&lt;/b&gt;&lt;br/&gt;abstract behaviours:&lt;br/&gt;executor, loader, interactable"]
+    SRV["&lt;b&gt;Services&lt;/b&gt;&lt;br/&gt;global coordinators:&lt;br/&gt;readiness, notifications"]
+    DOM["&lt;b&gt;Domain&lt;/b&gt;&lt;br/&gt;pure data definitions:&lt;br/&gt;profiles, settings, weights"]
+
+    SYS --&gt; DOM
+    SRV --&gt; DOM
+  end
+
+  DATA[("Authored data files")]
+
+  FEAT == "depends on" ==&gt; CORE
+  DATA -. "instances of Domain types" .-&gt; CORE
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<p>A handful of rules make this classification hold over time:</p>
+<ul>
+<li><strong>One class per folder</strong>, named after it, with its visual or scene definition beside it when it has one;</li>
+<li><strong>Subclasses of a base in the same layer</strong> go in a plural folder inside the base’s folder (<code>Loader/Loaders/...</code>), so the family is visible at a glance;</li>
+<li><strong>Concrete implementations of a core base</strong> live in <em>Features</em>, grouped by <em>what they are</em> (<code>Executors/Walk</code>, <code>Executors/Cutscene</code>), never by the level where they first appeared;</li>
+<li><strong>Helpers that only exist for one class</strong> stay in that class’s folder until something else uses them, at which point they earn their own;</li>
+<li><strong>Dependencies point inwards</strong>: Features may depend on Core, Core never depends on Features.</li>
+</ul>
+<p>The last rule is the easiest to break and the most important to keep. The moment a core system references a concrete feature, for example the base executor looking up <em>the</em> player, it can no longer be reused in another game or tested without the whole world around it. The shared context described in the previous section is precisely what removes that last dependency.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>A quick test for your structure
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Pick any folder in <em>Core</em> and imagine copying it into a completely different game. If it does not compile, or does not make sense, without something from <em>Features</em>, the boundary has leaked.</p>
+</div>
+</div>
+<hr>
+</section>
+<section id="trade-offs" class="level2">
+<h2 class="anchored" data-anchor-id="trade-offs">Trade-offs</h2>
+<p>The model is not free, and its costs should be weighed before adopting it:</p>
+<ul>
+<li><strong>Indirection.</strong> The flow is no longer visible in the code of any single piece. Without tooling (a readable tree in the editor, tracing in the logs), <em>“why did this happen now?”</em> becomes harder to answer, not easier;</li>
+<li><strong>Event chains are harder to debug than calls.</strong> A missing or misnamed completion event does not raise an error; it simply never arrives. Logging skipped children and executors that stay <em>Started</em> for too long is the countermeasure;</li>
+<li><strong>Fail forward hides failures.</strong> It keeps the session running, but only logging makes the skip visible, and critical executors should opt out of it;</li>
+<li><strong>Over-generalisation.</strong> Not every behaviour is a moment in a flow. Continuous systems (movement, physics, ambient simulation) belong in the regular update loop, and wrapping them as executors only adds ceremony;</li>
+<li><strong>Granularity.</strong> Executors that are too small turn sequences into long lists of trivial steps; executors that are too large reintroduce the coupling the model was meant to remove. A useful heuristic is one executor per <em>completion condition the designer cares about</em>.</li>
+</ul>
+<hr>
+</section>
+<section id="conclusion" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
+<p>The architecture described here moves the gameplay flow out of the individual pieces and into an explicit, composable structure:</p>
+<ul>
+<li>A minimal <strong>executor contract</strong> (start, update, announce the end) with a lifecycle owned by a base and behaviour supplied through hooks;</li>
+<li><strong>Composition</strong> through executors that orchestrate executors, starting with the sequencer and extending to parallel, selector, repeat and decorator variants;</li>
+<li><strong>Events</strong> as the only coupling between pieces, from completion and readiness to player interaction;</li>
+<li><strong>Data</strong> as the source of variation, through profiles and weighted choices;</li>
+<li>A <strong>classified project structure</strong>, by nature first and subject second, with dependencies pointing inwards.</li>
+</ul>
+<p>The result is a game loop that describes <em>what</em> happens, while each executor decides <em>how</em>.</p>
+<hr>
+<div class="column-body">
+<script src="https://giscus.app/client.js" data-repo="danieltorquatof/blog" data-repo-id="R_kgDONv_J5g" data-category="Articles" data-mapping="number" data-term="51" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="preferred_color_scheme" data-lang="en" data-loading="lazy" crossorigin="anonymous" async="">
+</script>
+</div>
+
+
+</section>
+
+
+<div id="quarto-appendix" class="default"><section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes"><h2 class="anchored quarto-appendix-heading">Footnotes</h2>
+
+<ol>
+<li id="fn1"><p>Gamma, E., Helm, R., Johnson, R. and Vlissides, J. <em>Design Patterns: Elements of Reusable Object-Oriented Software</em>, 1994, “Template Method”.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2"><p>Ibid., “Composite”. For game-specific variations of these ideas, see Nystrom, R. <em>Game Programming Patterns</em>, 2014, especially the “Update Method”, “Event Queue” and “Service Locator” chapters.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn3"><p>Behaviour trees are a widely used technique for agent decision-making in games, popularised by their use in large commercial titles in the mid-2000s.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section></div></main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/blog\.danieltorquatof\.spikeystudio\.com\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>Copyright © 2025–2026 - Spikey Studio</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

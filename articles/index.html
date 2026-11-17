@@ -31,7 +31,7 @@ ul.task-list li input[type="checkbox"] {
 </style>
 
 
-<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
 <script src="../site_libs/quarto-nav/headroom.min.js"></script>
 <script src="../site_libs/clipboard/clipboard.min.js"></script>
 <script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
@@ -52,9 +52,9 @@ ul.task-list li input[type="checkbox"] {
 <link href="../site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-6a2a5a5fac19b8b735b008f7a29a809b.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="../site_libs/bootstrap/bootstrap-dark-eb725d6b228dd80de2a28e44f3ab7fad.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
-<link href="../site_libs/bootstrap/bootstrap-6a2a5a5fac19b8b735b008f7a29a809b.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-ec80a17a85d6a8798dfb477aad9c7394.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-fb87b5cc84404828a0cf4f2709024f03.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-ec80a17a85d6a8798dfb477aad9c7394.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -92,7 +92,7 @@ ul.task-list li input[type="checkbox"] {
     const options = {
       valueNames: ['listing-image','listing-date','listing-reading-time','listing-title','listing-categories','listing-description',{ data: ['index'] },{ data: ['categories'] },{ data: ['listing-date-sort'] }],
       
-      searchColumns: ["listing-categories"],
+      searchColumns: ["listing-date","listing-title","listing-author","listing-subtitle","listing-image","listing-description","listing-categories"],
     };
 
     window['quarto-listings'] = window['quarto-listings'] || {};
@@ -124,9 +124,6 @@ ul.task-list li input[type="checkbox"] {
     }
   });
 </script>
-<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
-
-<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
   <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js" type="text/javascript"></script>
@@ -444,7 +441,7 @@ window.Quarto = {
 <!-- sidebar -->
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-    <h5 class="quarto-listing-category-title">Categories</h5><div class="quarto-listing-category category-default"><div class="category" data-category="">All <span class="quarto-category-count">(0)</span></div></div></div>
+    <h5 class="quarto-listing-category-title">Categories</h5><div class="quarto-listing-category category-default"><div class="category" data-category="">All <span class="quarto-category-count">(1)</span></div><div class="category" data-category="RGVzaWduJTIwUGF0dGVybnM=">Design Patterns <span class="quarto-category-count">(1)</span></div><div class="category" data-category="R2FtZSUyMERldmVsb3BtZW50">Game Development <span class="quarto-category-count">(1)</span></div><div class="category" data-category="U29mdHdhcmUlMjBBcmNoaXRlY3R1cmU=">Software Architecture <span class="quarto-category-count">(1)</span></div><div class="category" data-category="U3lzdGVtcyUyMERlc2lnbg==">Systems Design <span class="quarto-category-count">(1)</span></div></div></div>
 <!-- main -->
 <main class="content column-page-left" id="quarto-document-content">
 
@@ -479,25 +476,6 @@ window.Quarto = {
 </header>
 
 
-<div id="bfe18af3" class="cell" data-execution_count="2">
-<div class="cell-output cell-output-display" data-execution_count="2">
-
-      <div class="callout callout-style-default callout-caution callout-titled">
-        <div class="callout-header d-flex align-content-center">
-          <div class="callout-icon-container">
-            <i class="callout-icon"></i>
-          </div>
-          <div class="callout-title-container flex-fill">
-            Notice
-          </div>
-        </div>
-        <div class="callout-body-container callout-body">
-          <p>This blog is a work in progress. Follow me on <a href="https://www.linkedin.com/in/danieltorquatof/" target="_blank" data-original-href="https://www.linkedin.com/in/danieltorquatof/">LinkedIn</a> for updates.</p>
-        </div>
-      </div>
-    
-</div>
-</div>
 <div id="listing-articles-list" class="quarto-listing quarto-listing-container-default">
 <div class="listing-actions-group">
    <div class="input-group input-group-sm quarto-listing-sort">
@@ -518,7 +496,40 @@ window.Quarto = {
   </div>
 </div>
 <div class="list quarto-listing-default">
+<div class="quarto-post image-right" data-index="0" data-categories="R2FtZSUyMERldmVsb3BtZW50JTJDU29mdHdhcmUlMjBBcmNoaXRlY3R1cmUlMkNTeXN0ZW1zJTIwRGVzaWduJTJDRGVzaWduJTIwUGF0dGVybnM=" data-listing-date-sort="1794873600000" data-listing-file-modified-sort="1794950290000" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="22" data-listing-word-count-sort="4349">
+<div class="thumbnail"><a href="../articles/abstracting-executors-modular-game-loops/index.html" class="no-external">
 
+<div class="listing-item-img-placeholder card-img-top" >&nbsp;</div>
+
+</a></div>
+<div class="body">
+<h3 class="no-anchor listing-title">
+<a href="../articles/abstracting-executors-modular-game-loops/index.html" class="no-external">Abstracting and Generalising Executors for Modular Game Loops</a>
+</h3>
+<div class="listing-categories">
+
+<div class="listing-category" onclick="window.quartoListingCategory('R2FtZSUyMERldmVsb3BtZW50'); return false;">Game Development</div>
+
+<div class="listing-category" onclick="window.quartoListingCategory('U29mdHdhcmUlMjBBcmNoaXRlY3R1cmU='); return false;">Software Architecture</div>
+
+<div class="listing-category" onclick="window.quartoListingCategory('U3lzdGVtcyUyMERlc2lnbg=='); return false;">Systems Design</div>
+
+<div class="listing-category" onclick="window.quartoListingCategory('RGVzaWduJTIwUGF0dGVybnM='); return false;">Design Patterns</div>
+
+</div>
+<div class="delink listing-description"><a href="../articles/abstracting-executors-modular-game-loops/index.html" class="no-external">
+<p>An engine-agnostic look at executors, sequencers and event-driven flows that make game loops modular, plus a classified way to organise the project around them.</p>
+</a></div>
+</div>
+<div class="metadata">
+<a href="../articles/abstracting-executors-modular-game-loops/index.html" class="no-external">
+<div class="listing-date">
+November 17, 2026
+</div>
+<div class="listing-reading-time">22 min</div>
+</a>
+</div>
+</div>
 </div>
 <div class="listing-no-matching d-none">No matching items</div>
 </div>

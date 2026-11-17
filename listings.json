@@ -1,25 +1,14 @@
 [
   {
     "listing": "/articles/index.html",
-    "items": []
-  },
-  {
-    "listing": "/index.html",
     "items": [
-      "/posts/reliable-automation-pipelines-persistent-game-worlds/index.html",
-      "/projects/minecraft-backup/index.html",
-      "/posts/how-to-ruin-your-company-and-team-with-ai/index.html"
+      "/articles/abstracting-executors-modular-game-loops/index.html"
     ]
   },
   {
-    "listing": "/achievements/index.html",
-    "items": []
-  },
-  {
-    "listing": "/posts/index.html",
+    "listing": "/projects/index.html",
     "items": [
-      "/posts/reliable-automation-pipelines-persistent-game-worlds/index.html",
-      "/posts/how-to-ruin-your-company-and-team-with-ai/index.html"
+      "/projects/minecraft-backup/index.html"
     ]
   },
   {
@@ -29,9 +18,23 @@
     ]
   },
   {
-    "listing": "/projects/index.html",
+    "listing": "/posts/index.html",
     "items": [
-      "/projects/minecraft-backup/index.html"
+      "/posts/reliable-automation-pipelines-persistent-game-worlds/index.html",
+      "/posts/how-to-ruin-your-company-and-team-with-ai/index.html"
+    ]
+  },
+  {
+    "listing": "/achievements/index.html",
+    "items": []
+  },
+  {
+    "listing": "/index.html",
+    "items": [
+      "/articles/abstracting-executors-modular-game-loops/index.html",
+      "/posts/reliable-automation-pipelines-persistent-game-worlds/index.html",
+      "/projects/minecraft-backup/index.html",
+      "/posts/how-to-ruin-your-company-and-team-with-ai/index.html"
     ]
   }
 ]
