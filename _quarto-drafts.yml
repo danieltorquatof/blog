@@ -1,0 +1,4 @@
+# Local profile to read drafts: uv run quarto preview --profile drafts
+# Never used by the publish workflow, which renders without a profile.
+website:
+  draft-mode: visible

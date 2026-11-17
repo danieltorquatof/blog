@@ -12,6 +12,12 @@ uv run quarto preview
 uv run quarto render
 ```
 
+Draft pages render empty locally too (`draft-mode: gone`). To read them while writing, preview with the `drafts` profile (`_quarto-drafts.yml`), which only switches `draft-mode` to `visible` and is never used when publishing:
+
+```bash
+uv run quarto preview --profile drafts
+```
+
 Publishing runs on GitHub Actions (`.github/workflows/publish.yml`) when a `v*` tag is pushed.
 
 ## Writing a post
