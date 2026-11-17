@@ -1,0 +1,639 @@
+---
+title: "Abstracting and Generalising Executors for Modular Game Loops"
+subtitle: "How small units of intention, composed into sequences, turn a game loop into something you assemble instead of rewrite"
+description: "An engine-agnostic look at executors, sequencers and event-driven flows that make game loops modular, plus a classified way to organise the project around them."
+
+date: 2026-11-17
+
+# Permanent short link: /articles/<uuid>/ redirects here (utils/seo_postrender.py)
+uuid: 9ff5bc5f-f500-467c-8f10-618646377a50
+
+categories:
+  - Game Development
+  - Software Architecture
+  - Systems Design
+  - Design Patterns
+
+draft: false
+---
+
+---
+
+At the gameplay level, a game is an ordered set of moments: the player walks a few steps, looks around, approaches a door, a scene plays, something appears in the dark. Each moment has a precondition, a completion condition and side effects on the world. When those moments are scripted directly against each other, the flow is spread across flags, timers and callbacks in many places, and any change in order or content becomes a refactor.
+
+This article describes an architecture that addresses this by **treating every moment of the game as an executor**: a unit with a uniform lifecycle and an explicit completion event, orchestrated by generic components that know nothing about what each executor does. It covers:
+
+* The executor contract and its lifecycle;
+* Composition through sequencers and the capabilities a child can expose;
+* Aggregation, readiness barriers and interactions as event sources;
+* Data-driven variation;
+* Extensions of the model (parallelism, selection, cancellation, shared context);
+* A classified segmentation of the project that keeps these boundaries intact.
+
+The examples come from a horror game, but nothing here depends on a genre, an engine or a programming language. Every flow is described as a diagram so that it can be translated to any toolset.
+
+---
+
+## The Problem with Hardcoded Game Loops
+
+Before talking about the solution, it is worth visualising the problem. The most common way to script a sequence of gameplay moments is to let each piece know what comes next.
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart LR;
+  subgraph CHAIN[Direct calls]
+    direction TB
+    A[Player script]
+    B[Tutorial script]
+    C[Door script]
+    D[Cutscene script]
+    E[Encounter script]
+
+    A -- "sets walked" --> B
+    B -- "enables" --> C
+    C -- "on open, plays" --> D
+    D -- "on end, spawns" --> E
+  end
+
+  F[("Shared flags<br/>read and written<br/>by every script")]
+
+  CHAIN <-. "hidden coupling" .-> F
+```
+
+Every arrow in this diagram is a dependency. The door knows about the cutscene, the cutscene knows about the encounter, and every script reads or writes flags that others left behind. The flow exists, but it exists *implicitly*, spread across the pieces, and nobody can read it in a single place.
+
+The consequences are predictable:
+
+* Reordering two moments requires editing every script around them;
+* Reusing a moment in another level drags its neighbours along;
+* A missing object halfway through silently freezes the whole sequence;
+* Testing one moment in isolation is nearly impossible.
+
+What we want is the opposite: pieces that know nothing about each other, and a flow that is described explicitly, in one place, by something whose only job is to run it.
+
+---
+
+## The Executor: The Smallest Unit of Intention
+
+An executor is anything that represents *one thing that must happen*: wait for the player to walk ten metres, play an animation, spawn a creature, wait until a light is switched off. What makes it an executor is not what it does, but the contract it follows:
+
+1. It can be **started**;
+2. While running, it can **update** itself, every frame or every tick;
+3. At some point it decides it is done and **announces that it has finished**.
+
+That contract can be modelled as a tiny state machine:
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+stateDiagram-v2
+  direction LR
+  [*] --> Waiting
+  Waiting --> Started: start
+  Started --> Finished: condition met
+  Finished --> [*]: emits finished
+
+  Started : Started
+  Started : update every tick
+```
+
+Three states, two transitions that matter. The executor does not know who started it, and it does not know what comes after it. It only knows its own completion condition.
+
+### Lifecycle hooks
+
+To avoid every executor reimplementing the same state handling, the base executor owns the state machine and exposes only *hooks* for the specific behaviour, a classic application of the Template Method pattern[^1]:
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+%%{init: {"sequence": {"mirrorActors": false, "messageMargin": 28, "boxMargin": 6}}}%%
+sequenceDiagram
+  participant O as Orchestrator
+  participant B as Base executor
+  participant C as Concrete executor
+
+  O->>B: start
+  B->>B: state = Started
+  B->>C: on start
+  Note right of C: prepare, show hints,<br/>spawn things
+
+  loop every tick while Started
+    B->>C: on update
+    C->>C: measure progress
+  end
+
+  C->>B: finish (condition met)
+  B->>B: state = Finished
+  B->>C: on finish
+  Note right of C: clean up what it created
+  B-->>O: finished event
+```
+
+The concrete executor never touches the state directly. It prepares what it needs when it starts, measures its own progress while running, calls *finish* when its condition is met and cleans up afterwards. Everything else is guaranteed by the base.
+
+A few examples of how different moments fit the same shape:
+
+| Executor | On start | On update | Completion condition | On finish |
+| --- | --- | --- | --- | --- |
+| Walk | Show a movement hint | Accumulate horizontal distance travelled | Distance ≥ N metres | Remove the hint |
+| Look around | Show a camera hint | Accumulate absolute rotation | Rotation ≥ N degrees | Remove the hint |
+| Get close | Place a marker on a target | Measure distance to the target | Distance ≤ N metres | Remove the marker |
+| Cutscene | Lock controls, play animation | Nothing | Animation finished event | Restore controls |
+
+Notice that the last row has no update logic at all. Its completion comes from *another* event, which already hints at something important: executors can finish because of time, because of player progress or because something else in the world told them to.
+
+---
+
+## Fail Forward: Executors That Never Deadlock
+
+Games run in messy environments. Objects get renamed, a target is removed from a level, an asset fails to load. In a hardcoded flow, any of these freezes the sequence forever, usually without an error.
+
+Executors can adopt a simple rule: **if an executor cannot do its job, it finishes immediately**.
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  A([start])
+  B{Can it run?}
+  C[Run on start hook]
+  D["Every tick: run on update<br/>until the condition is met"]
+  S[Skip and log it]
+  F(["Finish and emit finished"])
+
+  A --> B
+  B -- Yes --> C
+  C --> D
+  D -- "condition met" --> F
+  B -- No --> S
+  D -. "dependency lost" .-> S
+  S --> F
+```
+
+The sequence always moves forward. A missing marker means the player does not see a hint, not that the game stops.
+
+::: {.callout-tip}
+## Fail forward or fail stop?
+
+Skipping is the right default for *presentation* (hints, markers, ambience). For moments that carry state the rest of the game depends on, such as giving the player a key, skipping silently only moves the bug further away. Make the choice explicit per executor and **always log the skip**, so a broken moment shows up in the logs instead of in a player's review.
+:::
+
+---
+
+## The Sequencer: An Executor of Executors
+
+With a uniform contract in place, the orchestrator becomes almost boringly simple. A sequencer holds an ordered list of executors and runs them one after the other:
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+%%{init: {"sequence": {"mirrorActors": false, "messageMargin": 28, "boxMargin": 6}}}%%
+sequenceDiagram
+  participant SQ as Sequencer
+  participant E1 as Executor 1
+  participant E2 as Executor 2
+  participant E3 as Executor 3
+
+  SQ->>E1: start
+  Note over E1: runs until its condition is met
+  E1-->>SQ: finished
+  SQ->>E2: start
+  E2-->>SQ: finished
+  SQ->>E3: start
+  E3-->>SQ: finished
+  Note over SQ: no executors left
+  SQ-->>SQ: emit finished
+```
+
+The sequencer subscribes to the *finished* event of the current executor once, starts it and waits. When the event arrives, it moves to the next one. When the list is over, it announces that *it* has finished.
+
+And that last detail is where the idea becomes powerful: **a sequencer follows the same contract as an executor**. It can be started and it announces when it is done. So a sequencer can be placed inside another sequencer, exactly like any other executor, which is the Composite pattern[^2] applied to gameplay flow.
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  ROOT[Root sequencer]
+
+  subgraph T[Tutorial sequencer]
+    direction LR
+    T1[Walk] --> T2[Look around] --> T3[Get close to target] --> T4[Cutscene]
+  end
+
+  subgraph N[Night sequencer]
+    direction LR
+    N1[Spawn a group and wait for all to leave] --> N2[Spawn a single figure and wait]
+  end
+
+  subgraph F[Finale sequencer]
+    direction LR
+    F1[Lights out] --> F2[Encounter] --> F3[Ending cutscene]
+  end
+
+  ROOT --> T
+  T -- finished --> N
+  N -- finished --> F
+```
+
+The whole game flow is now a **tree you can read**. Reordering the tutorial means moving two items in a list. Removing the finale for a demo build means removing one branch. Testing the night sequence means starting that sequencer directly, without playing the tutorial first.
+
+---
+
+## The Contract Is the Interface, Not the Type
+
+There is a subtle decision hidden in the previous section. The sequencer does not ask *"is this an executor?"*. It asks *"can this be started, and does it announce when it finishes?"*.
+
+That difference matters because it lets the sequencer orchestrate things that were never designed as executors. A creature that walks a path and announces when it reaches the end, an animation player that announces when a clip ends, a door that announces when it is opened: all of them can join a sequence, as long as they expose the two halves of the contract.
+
+It also gives the sequencer a natural vocabulary for three kinds of children:
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart LR;
+  A[Next child]
+  B{Can it<br/>start?}
+  C{Announces<br/>finished?}
+  N["<b>Non-executor</b><br/>skip it"]
+  F["<b>Fire-and-forget</b><br/>start it, continue at once"]
+  W["<b>Blocking</b><br/>subscribe once, start it,<br/>wait for finished"]
+
+  A --> B
+  B -- No --> N
+  B -- Yes --> C
+  C -- No --> F
+  C -- Yes --> W
+```
+
+* **Blocking executors** start and hold the sequence until they finish;
+* **Fire-and-forget executors** start and let the sequence continue at once, which is a cheap way of running things in parallel (an ambient sound, a flickering light);
+* **Non-executors** are ignored, so helpers and data can live next to the executors without breaking anything.
+
+::: {.callout-note}
+## Explicit beats implicit, eventually
+
+Checking capabilities at runtime is flexible and fast to prototype with. As the project grows, a formal contract (an interface, a protocol, a trait, whatever your language calls it) catches mistakes earlier, such as a misspelled event name that silently turns a blocking executor into a fire-and-forget one. A good middle ground is to keep the flexible check in the sequencer but log every child it skips or does not wait for.
+:::
+
+---
+
+## Waiting for Many: Aggregating Executors
+
+Some moments are not a single action but a group of them. Picture a scene where several figures walk past the player, one after another, and the moment is only over when **every one of them** has left.
+
+The executor that represents this moment is itself a small orchestrator: it spawns its children at an interval, counts how many finished and only finishes when both counts reach the target.
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart LR;
+  subgraph SPAWN[Spawning loop]
+    direction TB
+    S1([start])
+    S2["Spawn a child and<br/>subscribe to its finished"]
+    S3{All N<br/>spawned?}
+    S4["Wait the interval<br/>(stop if no longer Started)"]
+    S5([stop spawning])
+
+    S1 --> S2
+    S2 --> S3
+    S3 -- No --> S4
+    S4 --> S2
+    S3 -- Yes --> S5
+  end
+
+  subgraph COUNT[On each child finished]
+    direction TB
+    C1([child finished])
+    C2[finished += 1]
+    C3{"spawned = N<br/>and<br/>finished = N?"}
+    C4([Finish])
+    C5([keep waiting])
+
+    C1 --> C2
+    C2 --> C3
+    C3 -- Yes --> C4
+    C3 -- No --> C5
+  end
+
+  SPAWN -. "child ends" .-> COUNT
+```
+
+Two details deserve attention. First, the check happens on **both** counters: if a child finishes very quickly, before the last one is spawned, the executor must not finish early. Second, the spawn loop checks whether the executor is **still running** before each spawn, because something else may have finished or interrupted it in the meantime.
+
+Children can also relate to each other. In my case, each spawned figure follows the one in front of it, which turns a list of independent entities into a procession without any extra orchestration.
+
+---
+
+## Readiness Barriers: Making Sure the World Is Ready
+
+Executors assume the world is in place: assets loaded, settings applied, references resolved. When loading is asynchronous, a common source of bugs is an executor starting before what it needs exists.
+
+The same event-driven thinking solves this. Each loader registers itself when it starts, announces when it finishes and a global registry announces when **all** of them are done.
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+%%{init: {"sequence": {"mirrorActors": false, "messageMargin": 28, "boxMargin": 6}}}%%
+sequenceDiagram
+  participant L1 as Loader A
+  participant L2 as Loader B
+  participant R as Readiness registry
+  participant C as Consumer
+
+  L1->>R: register started
+  L2->>R: register started
+  L1->>R: register finished
+  R-->>R: schedule a single "all done" check
+  C->>R: is Loader A finished?
+  R-->>C: yes, use it now
+  C->>R: is Loader B finished?
+  R-->>C: not yet
+  C->>L2: subscribe once to finished
+  L2->>R: register finished
+  L2-->>C: finished
+  R-->>R: all started = all finished
+  R-->>R: emit all finished
+```
+
+The most important line in this diagram is the consumer **asking before subscribing**. Events are not stored: if a consumer subscribes after the loader has already finished, it will wait forever for an event that already happened. This is the *late subscriber* problem, and the fix is always the same: check the current state first, subscribe only if the result is not there yet.
+
+The other detail is the **coalesced check**. When several loaders finish in the same frame, the registry schedules a single "are we all done?" check for later in the frame, instead of evaluating it once per loader. The event fires once, at the right moment.
+
+---
+
+## Interactions as Event Sources
+
+So far, executors finish because of their own conditions. The other half of a game is the player *doing* things: pressing a button, opening a gate, pulling a lever. Those interactions should not call gameplay code directly either. They should become events.
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  subgraph IN[Input]
+    direction LR
+    A[Player presses interact] --> B[Ray finds an interactable]
+  end
+
+  subgraph GEN[Generic interactable]
+    C["emits &quot;interacted&quot;"]
+  end
+
+  subgraph DOM[Owning object]
+    D["emits a domain event,<br/>e.g. &quot;gate opened&quot;"]
+  end
+
+  subgraph GAME[Gameplay reactions]
+    direction LR
+    E1[Finish an executor] ~~~ E2[Change a light] ~~~ E3[Play a sound]
+  end
+
+  IN --> GEN
+  GEN --> DOM
+  DOM --> GAME
+```
+
+The layering matters. A generic interactable only knows *"I was interacted with"*. The object that owns it translates that into something meaningful, such as *"the gate was opened"* or *"the lever was pulled"*, and only then does gameplay react. Each layer can be reused without the ones above it: the same interactable powers a button, a drawer or a window, and the same *opened* event can finish an executor, change a light or trigger a sound.
+
+Draggable objects follow the same idea with a slightly richer state machine:
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+stateDiagram-v2
+  direction LR
+  [*] --> Idle
+  Idle --> Dragging: begin drag
+  Dragging --> Settling: release or too far
+  Settling --> Idle: came to rest
+
+  Idle : Idle
+  Idle : if locked, a grab only
+  Idle : emits a locked interaction
+```
+
+Grabbing an object that is still settling simply starts a new drag, exactly as it would from *Idle*. Every transition emits a state change event, so a door that slams shut on its own, a locked drawer that rattles or a gate that reaches its limit can all be expressed without the drag logic knowing anything about horror.
+
+---
+
+## Variation Through Data
+
+In a horror game, predictability kills tension. The flow must be readable for the developer and *unreadable* for the player. The way to get both is to keep the structure fixed and move the variation into data.
+
+Two simple tools go a long way:
+
+* **Profiles**: a session description (short, medium or long, for example) that a sequencer reads to decide how many moments to run and how dense they are;
+* **Weighted choices**: every candidate (a creature, a sound, a texture variation, a line of dialogue) carries a weight, and selection is proportional to it.
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  subgraph IN[Weights]
+    direction LR
+    A["Creature A · 60"] ~~~ B["Creature B · 30"] ~~~ C["Creature C · 10"]
+  end
+
+  subgraph LINE["Running sums"]
+    direction LR
+    RA["0 – 59 → A"] --- RB["60 – 89 → B"] --- RC["90 – 99 → C"]
+  end
+
+  OUT(["Creature B is chosen"])
+
+  IN -- "total = 100" --> LINE
+  LINE -- "random draw r = 72 falls in 60 – 89" --> OUT
+```
+
+Selection walks the list accumulating weights and returns the first candidate whose running sum exceeds the draw, so each candidate wins with a probability proportional to its weight. When every weight is zero, the first candidate is returned instead of failing.
+
+Combined with executors, this turns content design into tuning. A rare scare is a candidate with a low weight. A night that escalates is a profile with denser sequences. None of it requires new code.
+
+---
+
+## Evolving the Engine: What Comes Next
+
+A sequential runner with blocking and fire-and-forget children already covers a surprising amount of a game. But once the contract is stable, the same idea extends naturally, and each extension is just *another executor that orchestrates executors*:
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  E[Executor contract: start, update, finished]
+
+  subgraph LEAF[Leaf executors]
+    L1[Walk]
+    L2[Wait for event]
+    L3[Play animation]
+    L4[Spawn and wait]
+  end
+
+  subgraph COMP[Composite executors]
+    C1[Sequence: one after the other]
+    C2["Parallel all: finish when every child finishes"]
+    C3["Parallel any: finish when the first child finishes"]
+    C4[Selector: pick one child by condition or weight]
+    C5[Repeat: run a child N times or until a condition]
+  end
+
+  subgraph DEC[Decorators]
+    D1[Timeout: finish or fail after N seconds]
+    D2[Delay: wait before starting the child]
+    D3[Guard: only run if a condition holds]
+  end
+
+  E --> LEAF
+  E --> COMP
+  E --> DEC
+```
+
+If this family looks familiar, it is because it converges towards behaviour trees[^3], with one important difference in intention: here the tree describes the **pacing of the game**, not the decisions of an agent.
+
+Three improvements to the base contract are worth making before the family grows:
+
+1. **Cancellation.** In a horror game, the player can be caught in the middle of anything. Executors need a *cancel* path, distinct from *finish*, that cleans up without triggering the next moment. Composites propagate it to their running children.
+2. **Reset.** An executor that can only run once cannot be reused by a *Repeat* or replayed after a checkpoint. Resetting state and counters should be part of the contract.
+3. **Shared context.** Executors frequently need the same references: the player, the main camera, the current session. Looking them up globally from every executor couples them to the world layout. Passing a context (often called a *blackboard*) from the sequencer down to its children keeps executors portable and makes them trivial to test.
+
+With cancellation in place, the state machine gains one more exit:
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+stateDiagram-v2
+  direction LR
+
+  state "Not ended yet" as Active {
+    direction LR
+    [*] --> Waiting
+    Waiting --> Started: start
+  }
+
+  state "Ended" as Done {
+    direction TB
+    Finished
+    Cancelled
+  }
+
+  [*] --> Active
+  Started --> Finished: condition met
+  Active --> Cancelled: cancel
+  Done --> Active: reset
+```
+
+Cancellation can arrive at any point before the executor ends, and a reset brings either ending back to the start.
+
+And because every transition is an event, **tracing** comes almost for free: logging each start, finish, skip and cancel with the executor's path in the tree gives you a timeline of every session, which is invaluable when a playtester says *"it just stopped"*.
+
+---
+
+## Classified Segmentation: Organising the Project
+
+An executor architecture only stays modular if the project structure reflects it. When base classes, concrete moments, global services and data all live in the same folder, the boundaries that the code works so hard to keep start to blur.
+
+The approach I settled on is to **classify every piece by its nature first, and by its subject second**:
+
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 100%
+%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 35}}}%%
+flowchart TB;
+  subgraph FEAT["Features: this game only"]
+    direction LR
+    F1["<b>Executors/</b><br/>Walk, LookAround,<br/>GetClose, Cutscene…"] ~~~ F2["<b>Loaders/</b><br/>concrete asset<br/>loaders"] ~~~ F3["<b>Actors and world</b><br/>objects,<br/>orchestrators"]
+  end
+
+  subgraph CORE["Core: any game"]
+    SYS["<b>Systems</b><br/>abstract behaviours:<br/>executor, loader, interactable"]
+    SRV["<b>Services</b><br/>global coordinators:<br/>readiness, notifications"]
+    DOM["<b>Domain</b><br/>pure data definitions:<br/>profiles, settings, weights"]
+
+    SYS --> DOM
+    SRV --> DOM
+  end
+
+  DATA[("Authored data files")]
+
+  FEAT == "depends on" ==> CORE
+  DATA -. "instances of Domain types" .-> CORE
+```
+
+A handful of rules make this classification hold over time:
+
+* **One class per folder**, named after it, with its visual or scene definition beside it when it has one;
+* **Subclasses of a base in the same layer** go in a plural folder inside the base's folder (`Loader/Loaders/...`), so the family is visible at a glance;
+* **Concrete implementations of a core base** live in *Features*, grouped by *what they are* (`Executors/Walk`, `Executors/Cutscene`), never by the level where they first appeared;
+* **Helpers that only exist for one class** stay in that class's folder until something else uses them, at which point they earn their own;
+* **Dependencies point inwards**: Features may depend on Core, Core never depends on Features.
+
+The last rule is the easiest to break and the most important to keep. The moment a core system references a concrete feature, for example the base executor looking up *the* player, it can no longer be reused in another game or tested without the whole world around it. The shared context described in the previous section is precisely what removes that last dependency.
+
+::: {.callout-tip}
+## A quick test for your structure
+
+Pick any folder in *Core* and imagine copying it into a completely different game. If it does not compile, or does not make sense, without something from *Features*, the boundary has leaked.
+:::
+
+---
+
+## Trade-offs
+
+The model is not free, and its costs should be weighed before adopting it:
+
+* **Indirection.** The flow is no longer visible in the code of any single piece. Without tooling (a readable tree in the editor, tracing in the logs), *"why did this happen now?"* becomes harder to answer, not easier;
+* **Event chains are harder to debug than calls.** A missing or misnamed completion event does not raise an error; it simply never arrives. Logging skipped children and executors that stay *Started* for too long is the countermeasure;
+* **Fail forward hides failures.** It keeps the session running, but only logging makes the skip visible, and critical executors should opt out of it;
+* **Over-generalisation.** Not every behaviour is a moment in a flow. Continuous systems (movement, physics, ambient simulation) belong in the regular update loop, and wrapping them as executors only adds ceremony;
+* **Granularity.** Executors that are too small turn sequences into long lists of trivial steps; executors that are too large reintroduce the coupling the model was meant to remove. A useful heuristic is one executor per *completion condition the designer cares about*.
+
+---
+
+## Conclusion
+
+The architecture described here moves the gameplay flow out of the individual pieces and into an explicit, composable structure:
+
+* A minimal **executor contract** (start, update, announce the end) with a lifecycle owned by a base and behaviour supplied through hooks;
+* **Composition** through executors that orchestrate executors, starting with the sequencer and extending to parallel, selector, repeat and decorator variants;
+* **Events** as the only coupling between pieces, from completion and readiness to player interaction;
+* **Data** as the source of variation, through profiles and weighted choices;
+* A **classified project structure**, by nature first and subject second, with dependencies pointing inwards.
+
+The result is a game loop that describes *what* happens, while each executor decides *how*.
+
+::: {.content-visible when-format="html"}
+
+---
+
+:::
+
+[^1]: Gamma, E., Helm, R., Johnson, R. and Vlissides, J. *Design Patterns: Elements of Reusable Object-Oriented Software*, 1994, "Template Method".
+[^2]: Ibid., "Composite". For game-specific variations of these ideas, see Nystrom, R. *Game Programming Patterns*, 2014, especially the "Update Method", "Event Queue" and "Service Locator" chapters.
+[^3]: Behaviour trees are a widely used technique for agent decision-making in games, popularised by their use in large commercial titles in the mid-2000s.
+
+:::{.column-body}
+<script src="https://giscus.app/client.js"
+        data-repo="danieltorquatof/blog"
+        data-repo-id="R_kgDONv_J5g"
+        data-category="Articles"
+        data-mapping="number"
+        data-term="51"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+:::

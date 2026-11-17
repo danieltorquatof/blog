@@ -3,45 +3,49 @@ title: "DT's Blog"
 pagetitle: "Software Engineering, AI & Systems Design"
 description: "Daniel Torquato's blog: posts, projects, articles and achievements on software engineering, data science, artificial intelligence, DevOps and systems design."
 
-jupyter: python3
-
 listing:
-  id: feed-list
-  contents:
-    - posts/*/index.qmd
-    - projects/*/index.qmd
-    - articles/*/index.qmd
-    - achievements/*/index.qmd
-  sort: "date desc"
-  feed: true
-  fields:
-      - image
+  - id: highlights-list
+    contents:
+      - articles/abstracting-executors-modular-game-loops/index.qmd
+    type: grid
+    grid-columns: 1
+    fields:
       - title
       - subtitle
       - categories
       - description
       - date
+  - id: feed-list
+    contents:
+      - posts/*/index.qmd
+      - projects/*/index.qmd
+      - articles/*/index.qmd
+      - achievements/*/index.qmd
+    sort: "date desc"
+    feed: true
+    fields:
+        - image
+        - title
+        - subtitle
+        - categories
+        - description
+        - date
 ---
-
-```{python}
-from widgets import noticeWidget
-```
 
 ---
 
 ::: {.callout-tip}
 ## My dilemma
 
-Be everything you can be.  
+Be everything you can be.
 Invent, improve and implement.
 :::
 
 ## Highlights
 > This is a collection of my thoughts, projects, articles, and achievements.
 
-```{python}
-noticeWidget()
-```
+::: {#highlights-list}
+:::
 
 ---
 

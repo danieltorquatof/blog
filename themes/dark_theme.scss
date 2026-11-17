@@ -179,6 +179,20 @@ $web-font-path: "https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,10
   color: $dark !important;
 }
 
+// Sequence diagram participants: the label must contrast with its filled box
+// (Quarto's Mermaid CSS paints both with the same colour; its rules are scoped by id, hence !important)
+svg[id^="mermaid"] {
+  rect.actor {
+    fill: $light !important;
+    stroke: $light !important;
+  }
+
+  text.actor,
+  text.actor > tspan {
+    fill: $dark !important;
+  }
+}
+
 .navbar .quarto-navbar-tools .quarto-navigation-tool:hover {
   color: $favorite;
 }
